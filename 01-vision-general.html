@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visión general y arquitectura · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › Visión general</div>
+  <header class="hero">
+    <div class="kicker">Fundamentos</div>
+    <h1>Visión general y arquitectura</h1>
+    <p class="sub">Qué significa cada índice, cómo se combinan para producir el RIA, dónde interviene la inteligencia artificial y qué tecnología sostiene el sistema. Esta sección da el marco conceptual para entender el resto del tutorial.</p>
+  </header>
+
+  <h2><span class="num">1.</span>Los tres índices y su combinación</h2>
+  <p>El sistema evalúa un proyecto desde tres ángulos independientes y complementarios. Cada uno responde a una pregunta distinta, y cada uno produce un valor entero de <strong>1 a 4</strong>.</p>
+
+  <div class="cards">
+    <div class="card c-ina">
+      <div class="role">INA</div><h3>Naturaleza y Envergadura</h3>
+      <p><strong>¿Qué tan impactante es la actividad en sí misma?</strong> Depende de la naturaleza, magnitud y escala de la actividad económica — no de dónde se ubica. Se apoya en la clasificación internacional de actividades (CIIU).</p>
+    </div>
+    <div class="card c-isa">
+      <div class="role">ISA</div><h3>Significancia Ambiental</h3>
+      <p><strong>¿Qué tan sensible es el territorio donde se ubica?</strong> Es puramente geoespacial: cruza el polígono del proyecto contra capas ambientales (áreas protegidas, cuerpos de agua, remanencia de ecosistemas).</p>
+    </div>
+    <div class="card c-pia">
+      <div class="role">PIA</div><h3>Potencial de Impacto</h3>
+      <p><strong>¿Cuánto impacto podría producir, aspecto por aspecto?</strong> Recorre 10 categorías de impacto (aire, agua, suelo, etc.) y para cada una identifica el peor escenario aplicable al proyecto.</p>
+    </div>
+  </div>
+
+  <div class="panel tint-ria">
+    <h3 style="margin-top:0">La fórmula del RIA</h3>
+    <p style="font-size:1.25rem; text-align:center; font-weight:700; margin:12px 0">
+      <span style="color:var(--ina)">RIA</span> = <span style="color:var(--ina)">INA</span> + <span style="color:var(--isa)">ISA</span> + <span style="color:var(--pia)">PIA</span>
+    </p>
+    <p>El RIA es la <strong>suma aritmética simple</strong> de los tres índices. Como cada uno va de 1 a 4, el RIA resultante va de <strong>3 a 12</strong>. Ese total se traduce en una categoría ambiental que define el nivel de análisis que el proyecto requiere.</p>
+    <div class="callout warn" style="margin-bottom:0">
+      <div class="ct">⚠️ Nota de precisión técnica</div>
+      <p>En el módulo de dominio existe un comentario histórico que menciona "ISA desactivado" (una fórmula antigua de solo INA+PIA). <strong>En el flujo real de producción los tres índices se suman</strong>: la ruta ejecutada y la tabla de categorías (que cubre el rango 3–12) confirman <code>RIA = INA + ISA + PIA</code>. El comentario es un vestigio, no la ruta vigente.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span>La categoría ambiental</h2>
+  <p>El valor del RIA se mapea a una de tres categorías. Esta es la <strong>salida final</strong> que interesa al usuario: define el nivel de exigencia del trámite ambiental.</p>
+  <div class="tablewrap">
+    <table class="scale">
+      <thead><tr><th class="t-center">Rango RIA</th><th>Nivel de análisis</th><th>Categoría de impacto potencial</th></tr></thead>
+      <tbody>
+        <tr><td>3 – 5</td><td><strong>Nivel 1 (N1)</strong></td><td>Impacto ambiental potencial <strong>bajo</strong> (PIAB)</td></tr>
+        <tr><td>6 – 8</td><td><strong>Nivel 2 (N2)</strong></td><td>Impacto ambiental potencial <strong>leve</strong> (PIAL)</td></tr>
+        <tr><td>9 – 12</td><td><strong>Nivel 3 (N3)</strong></td><td>Impacto ambiental potencial <strong>moderado o alto</strong> (PIAMA)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Un proyecto de categoría N1 (PIAB) no requiere documentación ambiental adicional; los niveles superiores implican más requisitos. El detalle de cómo se calcula y categoriza está en la sección <a href="07-ria-cierre.html">RIA y cierre</a>.</p>
+
+  <h2><span class="num">3.</span>Dónde interviene la inteligencia artificial</h2>
+  <p>Este es uno de los puntos más importantes para entender el sistema: <strong>la IA no lo decide todo</strong>. El diseño combina deliberadamente dos tipos de lógica. La IA (el modelo <strong>Gemini</strong> de Google) aporta el <em>juicio semántico</em> —interpretar una descripción en lenguaje natural y decidir qué escenario encaja—, mientras que reglas de programación fijas (lógica <em>determinista</em>) aportan la <em>aritmética, la geometría y la integridad de los datos</em>.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Componente</th><th>¿Quién decide el valor?</th><th>Qué hace exactamente</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge b-ina">INA</span></td>
+          <td><span class="badge b-orq">IA (Gemini)</span></td>
+          <td>El modelo clasifica la actividad y asigna el valor 1–4. Una búsqueda determinista (motor de texto) le acota los códigos CIIU candidatos para que no invente.</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-isa">ISA</span></td>
+          <td><span class="badge b-auto">Determinista</span></td>
+          <td>El valor lo calcula una <strong>regla fija</strong> sobre el resultado geoespacial de una API externa. La IA <em>solo redacta la explicación</em> narrativa; su valor sugerido se descarta.</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-pia">PIA</span></td>
+          <td><span class="badge b-orq">IA</span> + <span class="badge b-auto">Determinista</span></td>
+          <td>La IA elige el escenario aplicable por aspecto; luego capas deterministas (geometría del ISA y reglas por actividad) refinan el valor y la aritmética final es fija.</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-orq">Orquestador</span></td>
+          <td><span class="badge b-orq">IA (agente)</span></td>
+          <td>Es el único componente verdaderamente conversacional: dialoga, decide qué preguntar y qué herramienta invocar. Reglas de seguridad del backend acotan su comportamiento.</td>
+        </tr>
+        <tr>
+          <td><a href="06-motor-sea.html">Motor de Reglas SEA</a> (competencia)</td>
+          <td><span class="badge b-orq">IA</span> + <span class="badge b-stop">Regla dura</span></td>
+          <td>Un motor legal (IA) clasifica el trámite en uno de cuatro caminos; reglas de programación resuelven los casos deterministas y garantizan que el RIA <em>no se calcule</em> salvo veredicto favorable.</td>
+        </tr>
+        <tr>
+          <td>Cálculo del RIA</td>
+          <td><span class="badge b-auto">Determinista</span></td>
+          <td>Una suma. La IA solo redacta la explicación y el informe final en lenguaje natural.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">💡 Un matiz de arquitectura</div>
+    <p>Aunque coloquialmente se hable del "agente INA", el "agente ISA" y el "agente PIA", <strong>solo el Orquestador es un agente conversacional real</strong> (construido con el Google Agent Developer Kit). INA, ISA y PIA son <em>llamadas directas</em> al modelo Gemini con una instrucción especializada: reciben una entrada, devuelven un resultado y no mantienen diálogo. Esto hace el sistema más predecible y económico.</p>
+  </div>
+
+  <h2><span class="num">4.</span>Las dos fases del proceso</h2>
+  <p>Como se anticipó en la portada, el sistema opera en dos fases. Conviene distinguirlas bien porque responden a lógicas distintas.</p>
+
+  <div class="pipe">
+    <div class="stage ep" style="border-top-color:var(--isa)">
+      <div class="n">FASE A</div>
+      <div class="t">Siembra de índices</div>
+      <div class="d">Cuatro endpoints (<span class="tool">ina/query</span>, <span class="tool">isa/init</span>, <span class="tool">isa/query</span>, <span class="tool">pia/query</span>) calculan y guardan las evaluaciones iniciales. Son cálculos dirigidos, no conversación.</div>
+    </div>
+    <div class="stage ep" style="border-top-color:var(--orq)">
+      <div class="n">FASE B</div>
+      <div class="t">Conversación y cierre</div>
+      <div class="d">El Agente Orquestador lee lo sembrado, completa lo pendiente dialogando, aplica la compuerta legal, calcula el RIA y entrega el informe.</div>
+    </div>
+  </div>
+
+  <p>En la práctica ambas fases comparten la misma base de datos: los endpoints de la Fase A dejan las evaluaciones en las tablas <code>ina_evaluations</code>, <code>isa_evaluations</code> y <code>pia_evaluations</code>, y el Orquestador de la Fase B las lee desde ahí. El vínculo entre todo es el <strong>Código de Formulario</strong> del proyecto, más el identificador de usuario y de sesión.</p>
+
+  <h2><span class="num">5.</span>La tecnología que lo sostiene</h2>
+  <p>Sin entrar en detalles de infraestructura, estos son los bloques tecnológicos y el papel que cumple cada uno.</p>
+  <dl class="meta">
+    <dt>Modelo de IA</dt><dd><strong>Google Gemini</strong> — el modelo de lenguaje que interpreta descripciones, clasifica actividades, elige escenarios y redacta explicaciones e informes.</dd>
+    <dt>Marco de agentes</dt><dd><strong>Google Agent Developer Kit (ADK)</strong> — la maquinaria que convierte al Orquestador en un agente capaz de invocar herramientas y razonar en varios turnos.</dd>
+    <dt>Capa de servicio</dt><dd><strong>FastAPI</strong> — expone los endpoints (Fase A) y el canal de conversación del chatbot (Fase B).</dd>
+    <dt>Base de datos</dt><dd><strong>PostgreSQL</strong> — persiste todas las evaluaciones, catálogos y el histórico. Cada cálculo agrega una fila nueva (versionado por fecha).</dd>
+    <dt>Búsqueda semántica</dt><dd><strong>pgvector</strong> — permite recuperar artículos legales relevantes por similitud de significado, para alimentar el PIA y el <a href="06-motor-sea.html">Motor de Reglas SEA</a> sin saturar los prompts. Es la base del <a href="08-corpus-legal.html">corpus legal (RAG multi-ley)</a>.</dd>
+    <dt>Embeddings</dt><dd><strong>text-multilingual-embedding-002</strong> (Vertex AI) — convierte los textos legales en vectores de 768 dimensiones para la búsqueda por significado.</dd>
+    <dt>Análisis geoespacial</dt><dd>Una <strong>API externa del MARN</strong> que cruza el polígono del proyecto contra capas ambientales y alimenta el ISA.</dd>
+  </dl>
+
+  <div class="callout key">
+    <div class="ct">🔑 Para recordar</div>
+    <p>Tres índices independientes (INA, ISA, PIA), cada uno 1–4, se suman en el RIA (3–12), que se mapea a una categoría ambiental (N1/N2/N3). La IA interpreta y redacta; las reglas deterministas calculan y verifican. Todo lo coordina un único agente conversacional, tras el <a href="06-motor-sea.html">Motor de Reglas SEA</a>, que decide si el trámite corresponde al MARN o a otra de las seis autoridades, apoyándose en un <a href="08-corpus-legal.html">corpus legal</a> vectorizado.</p>
+  </div>
+
+  <div class="pager">
+    <a href="index.html"><div class="dir">← Anterior</div><div class="ti">Inicio</div></a>
+    <a class="next" href="02-ina.html"><div class="dir">Siguiente →</div><div class="ti">INA · Naturaleza y Envergadura</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

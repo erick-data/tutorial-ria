@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor de Reglas SEA · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › Motor de Reglas SEA</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--stop)">La compuerta legal · novedad v2.0</div>
+    <h1>El Motor de Reglas SEA</h1>
+    <p class="sub">La compuerta que decide, antes de calcular el RIA, si el trámite le corresponde al MARN o a otra institución. En la versión 1.0 era una verificación binaria MARN/DOT; ahora es un <strong>motor multi-camino y multi-autoridad</strong> que clasifica cada trámite en uno de cuatro estados, puede redirigir a seis autoridades distintas y emite alertas de coordinación interinstitucional.</p>
+  </header>
+
+  <div class="callout key">
+    <div class="ct">🔁 Qué cambió respecto a la v1.0</div>
+    <p>La antigua "compuerta DOT" respondía una sola pregunta (¿MARN o DOT?) con tres veredictos. El <strong>Motor de Reglas SEA</strong> (Sistema de Evaluación Ambiental) generaliza esa lógica: la misma herramienta —<span class="tool">verificar_competencia_dot_tool</span>, nombre conservado por compatibilidad— ahora resuelve competencia entre <strong>múltiples instituciones</strong>, clasifica en <strong>cuatro caminos</strong> y distingue entre <em>redirigir</em>, <em>bloquear</em>, <em>avanzar</em> y <em>avanzar con alertas</em>.</p>
+  </div>
+
+  <h2><span class="num">1.</span>Los cuatro caminos</h2>
+  <p>El motor no responde "sí/no": clasifica el trámite en uno de cuatro <strong>caminos</strong> (estados funcionales). Cada camino determina si el flujo del RIA continúa o se detiene, y de él se deriva un <strong>veredicto</strong> simple (<code>marn</code> / <code>dot</code>) que consume el candado del RIA.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Camino</th><th>Significado</th><th>Efecto sobre el RIA</th><th>Veredicto</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-ok">2</span></td><td><strong>Avance MARN.</strong> El trámite es competencia del MARN (caso puro, transicional, o bypass por Art. 33 de la Ley DOT).</td><td>Continúa</td><td><code>marn</code></td></tr>
+        <tr><td><span class="badge b-ask">3</span></td><td><strong>Avance MARN con alertas.</strong> Competencia del MARN, pero con co-competencia de otras instituciones que se informan al usuario.</td><td>Continúa + anexa alertas</td><td><code>marn</code></td></tr>
+        <tr><td><span class="badge b-stop">1A</span></td><td><strong>Redirección.</strong> El trámite es competencia de otra autoridad; se redirige al usuario.</td><td>BLOQUEO</td><td><code>dot</code></td></tr>
+        <tr><td><span class="badge b-stop">1B</span></td><td><strong>Impedimento dimensional.</strong> Por un criterio de dimensión/escala el trámite no procede por esta vía.</td><td>BLOQUEO</td><td><code>dot</code></td></tr>
+        <tr><td><span class="badge b-warn">rev. manual</span></td><td><strong>Faltan datos</strong> para discriminar el camino con certeza razonable.</td><td>Formula 1–3 preguntas y reinvoca</td><td><code>revision_manual</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">🏷️ Por qué el veredicto es binario aunque los caminos sean cuatro</div>
+    <p>Los caminos 2 y 3 derivan en veredicto <code>marn</code> (el RIA puede calcularse); los caminos 1A y 1B derivan en <code>dot</code> (bloqueo). Esa reducción permite que el <strong>candado duro del RIA</strong> siga siendo una condición simple —"solo con veredicto <code>marn</code>"— mientras el motor conserva toda la riqueza de la clasificación para redactar el mensaje correcto.</p>
+  </div>
+
+  <h2><span class="num">2.</span>Multi-autoridad: a quién se redirige y a quién se alerta</h2>
+  <p>La gran diferencia con la v1.0 es que el destino ya no es siempre la DOT. El motor distingue dos conjuntos de instituciones:</p>
+
+  <div class="cards">
+    <div class="card" style="border-left-color:var(--stop)">
+      <div class="role" style="color:var(--stop)">Camino 1A · redirección (bloqueo)</div>
+      <h3>Autoridades destino</h3>
+      <p>El trámite se redirige a una de: <strong>DOT</strong>, <strong>DOT/Alcaldía</strong>, <strong>OPAMSS/APLAN</strong>, <strong>ANDRES</strong>, <strong>MIVI</strong> o <strong>ASA</strong>. Cada una tiene un mensaje de redirección propio.</p>
+    </div>
+    <div class="card" style="border-left-color:var(--ask)">
+      <div class="role" style="color:var(--ask)">Camino 3 · alertas (avance)</div>
+      <h3>Autoridades de co-competencia</h3>
+      <p>El MARN retiene el trámite pero informa la coordinación con: <strong>CBS, MINSAL, MAG, DGEHM, ASA, ASEA, DOT</strong>. Son notas informativas, no bloqueos.</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <div class="ct">⚖️ Textos pendientes de validación legal</div>
+    <p>Los mensajes de redirección hacia autoridades nuevas (distintas de la DOT) llevan internamente un marcador <code>[PENDIENTE_VALIDACION_LEGAL]</code> mientras la Dirección de Asuntos Jurídicos del MARN los aprueba. El sistema <strong>limpia ese marcador antes de mostrarlo</strong> al usuario, pero lo conserva crudo en la base de datos para trazabilidad.</p>
+  </div>
+
+  <h2><span class="num">3.</span>Cuándo se ejecuta el motor (tres momentos)</h2>
+  <p>El motor no se ejecuta una sola vez. Hay tres puntos de disparo, y dos de ellos son <strong>deterministas</strong> (no dependen de que la IA decida invocarlo):</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode start"><div class="ftitle">Cada mensaje del usuario</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide" style="border-color:var(--stop); border-left-width:5px"><div class="ftitle">① Invocación FORZADA al ingreso <span class="badge b-auto">determinista</span></div><div class="fsub">En el primer turno utilizable, el backend dispara el motor sin esperar a la IA. Permite un bloqueo temprano por materia (p. ej. residuos → ANDRES) apenas hay un resumen del proyecto.</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide orq"><div class="ftitle">② Invocación por el Orquestador <span class="badge b-orq">IA</span></div><div class="fsub">Cuando INA, ISA y PIA están completos, la IA invoca la herramienta <span class="tool">verificar_competencia_dot_tool</span> (obligatorio antes del RIA). También puede reinvocarse tras "revisión manual".</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide" style="border-color:var(--ria); border-left-width:5px"><div class="ftitle">③ Candado duro previo al RIA <span class="badge b-auto">determinista</span></div><div class="fsub">Antes de calcular el RIA, el código verifica el veredicto vigente. Sin veredicto <code>marn</code>, el cálculo se niega a ejecutar.</div></div>
+    </div>
+    <div class="cap">Diagrama 10 · Los tres puntos de disparo del Motor de Reglas SEA a lo largo de la sesión.</div>
+  </div>
+
+  <div class="callout key">
+    <div class="ct">🔑 Por qué la invocación forzada importa</div>
+    <p>En la v1.0 el motor dependía por completo de que la IA se acordara de llamar la herramienta. Ahora, un mecanismo del backend lo <strong>fuerza al ingreso</strong>: si un proyecto es de entrada competencia de otra institución, el sistema puede redirigir de inmediato, sin recorrer todo el pipeline de índices. La clasificación definitiva ocurre igual más adelante (cuando ya existen INA/ISA/PIA), pero el bloqueo temprano ahorra trabajo y evita falsas expectativas.</p>
+  </div>
+
+  <h2><span class="num">4.</span>Qué decide la IA y qué es determinista</h2>
+  <p>El motor combina el juicio legal del modelo con reglas de programación que <em>sobrescriben</em> a la IA en los casos críticos, de forma auditable.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Responsabilidad</th><th>Quién</th></tr></thead>
+      <tbody>
+        <tr><td>Recorrer el árbol de decisión legal (P0–P10), extraer hechos de la descripción del proyecto y redactar la clasificación</td><td><span class="badge b-orq">IA (Gemini)</span></td></tr>
+        <tr><td>Resolver las "familias deterministas" (criterio dimensional agrícola, cascada de obra nueva vs. existente) y fijar su desenlace</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Hacer cumplir la prevalencia de área crítica (anula desvíos que la IA proponga)</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Derivar el veredicto desde el camino y aplicar el candado del RIA</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Fusionar y conservar el almacén de hechos de la sesión</td><td><span class="badge b-auto">Determinista</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">5.</span>El árbol de decisión legal (P0–P10)</h2>
+  <p>El modelo recorre una serie de preguntas <strong>en orden estricto de prevalencia</strong> y se detiene en la primera regla terminal que produce un camino. El orden no es arbitrario: refleja qué materias tienen precedencia legal sobre otras.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>Pregunta / materia</th><th>Desenlace típico</th></tr></thead>
+      <tbody>
+        <tr><td><strong>P0</strong></td><td>¿Es acuicultura dentro de cuerpo de agua?</td><td>Camino 3 (override de máxima prioridad, alerta)</td></tr>
+        <tr><td><strong>P1</strong></td><td>¿Es gestión de residuos?</td><td>Camino 1A → <strong>ANDRES</strong></td></tr>
+        <tr><td><strong>P2</strong></td><td>¿Gran infraestructura amparada por el Art. 33 de la Ley DOT?</td><td>Camino 2 (bypass: MARN retiene)</td></tr>
+        <tr><td><strong>P3</strong></td><td>¿Manejo de sustancias peligrosas?</td><td>Camino 3 → alertas <strong>CBS / MINSAL</strong></td></tr>
+        <tr><td><strong>P4</strong></td><td>¿Infraestructura pasiva de telecomunicaciones?</td><td>Camino 1A → <strong>MIVI</strong></td></tr>
+        <tr><td><strong>P5</strong></td><td>¿Pozos? (según zona costera)</td><td>Camino 2 o Camino 1A → <strong>ASA</strong></td></tr>
+        <tr><td><strong>P6</strong></td><td>¿Interseca área natural protegida / área crítica?</td><td>Camino 2 (prevalencia territorial: MARN retiene)</td></tr>
+        <tr><td><strong>P7</strong></td><td>¿Lotificación agrícola? (criterio dimensional)</td><td>Camino 3 o Camino 1B (ver reglas deterministas)</td></tr>
+        <tr><td><strong>P8</strong></td><td>¿Cantera / extracción de material pétreo?</td><td>Camino 3 → alertas <strong>DGEHM / DOT</strong></td></tr>
+        <tr><td><strong>P9</strong></td><td>¿Hidrocarburos?</td><td>Camino 3 → alerta <strong>DGEHM</strong></td></tr>
+        <tr><td><strong>P10</strong></td><td>¿Obra nueva vs. existente? (edificación, interés social, regularización, área a construir)</td><td>Cascada de casos → Camino 2, o 1A (DOT / Alcaldía / OPAMSS-APLAN)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="color:var(--muted); font-size:.9rem">La base de las preguntas es la tabla de reglas <code>dot_competencia_reglas</code> (29 casos, casos 1–29), que se lee desde la base de datos y se contrasta contra los artículos aplicables recuperados del <a href="08-corpus-legal.html">corpus legal</a>. El prompt completo del motor está transcrito en la sección <a href="09-prompts.html#prompt-competencia">Prompts</a>.</p>
+
+  <h2><span class="num">6.</span>Las reglas deterministas: cuando Python decide</h2>
+  <p>Para dos "familias" de casos, el desenlace <strong>no lo decide la IA</strong>: el modelo solo identifica la familia y extrae los datos; luego una regla de programación calcula el resultado de forma auditable y <em>sobrescribe</em> al modelo. Esto evita que decisiones legales sensibles dependan de la interpretación del texto.</p>
+
+  <div class="panel tint-orq">
+    <h3 style="margin-top:0">Familia A · Criterio dimensional (lotificación agrícola)</h3>
+    <p>Basado en el Acuerdo 152 del MAG. Compara dos magnitudes del proyecto:</p>
+    <ul>
+      <li>Si la <strong>matriz ≥ 2 manzanas</strong> <em>y</em> los <strong>lotes ≥ 1 manzana</strong> → <strong>Camino 3</strong> (avance MARN con alerta al MAG).</li>
+      <li>En caso contrario → <strong>Camino 1B</strong> (impedimento dimensional: bloqueo).</li>
+    </ul>
+  </div>
+
+  <div class="panel tint-orq">
+    <h3 style="margin-top:0">Familia B · Cascada de obra nueva vs. existente</h3>
+    <p>Resuelve la precedencia entre varias condiciones, en este orden:</p>
+    <ul>
+      <li><strong>Bandera Art. 33 de la Ley DOT</strong> presente → Camino 2 (bypass: MARN retiene).</li>
+      <li>Obra existente <strong>sin modificación</strong> → Camino 1A (DOT).</li>
+      <li>Modificación <strong>con pronunciamiento de incompetencia de la DOT</strong> → Camino 2 (MARN retiene).</li>
+      <li>Modificación <strong>sin pronunciamiento</strong> → Camino 1A (DOT).</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">7.</span>La prevalencia de área crítica</h2>
+  <p>Es una de las salvaguardas más importantes del motor. El <a href="03-isa.html">ISA</a> ya sabe, por su análisis geoespacial, si el proyecto interseca un <strong>área natural protegida, manglar, arrecife o zona de recarga hídrica</strong>. Ese hecho es <strong>autoritativo</strong>:</p>
+  <div class="callout stop">
+    <div class="ct">🛡️ Regla de prevalencia</div>
+    <p>Si la geometría del ISA determina que el proyecto interseca un área crítica, el motor <strong>fuerza el Camino 2</strong> (el MARN retiene la gestión) y <strong>anula cualquier redirección 1A</strong> que la IA hubiera propuesto. La única excepción es el override de acuicultura (P0). Antes esto era una sugerencia al modelo; ahora es una regla que el código hace cumplir de forma determinista.</p>
+  </div>
+
+  <h2><span class="num">8.</span>El almacén de hechos de la sesión (<code>sea_facts</code>)</h2>
+  <p>El motor mantiene un <strong>almacén de hechos confirmados</strong> por sesión, con enfoque "extract-first": los datos que ya se saben del proyecto no se vuelven a preguntar y alimentan directamente las reglas deterministas.</p>
+  <div class="meta">
+    <dt>Qué guarda</dt><dd>Hechos como <code>es_obra_nueva</code>, <code>area_construir_m2</code>, <code>ubicacion_amss_ch</code>, <code>interseca_area_critica</code>, <code>flag_art33_dot</code>, <code>es_acuicultura</code>, <code>es_lotificacion_agricola</code>, <code>matriz_mz</code>, <code>lotes_mz</code>, <code>es_modificacion_permiso_marn</code>, <code>tiene_pronunciamiento_dot</code>.</dd>
+    <dt>Cómo crece</dt><dd>Acumulativo: cada ejecución parte de lo previo y lo enriquece. Los valores nuevos no nulos prevalecen; los previos se conservan para las claves que el turno actual no determinó.</dd>
+    <dt>Fuentes</dt><dd>Lo que el modelo extrae de la descripción y las aclaraciones del usuario, más el hecho autoritativo de área crítica derivado del ISA.</dd>
+    <dt>Dónde vive</dt><dd>En memoria, por sesión. No tiene tabla propia; se rehidrata parcialmente desde la última evaluación guardada tras un reinicio.</dd>
+  </div>
+
+  <h2><span class="num">9.</span>Las redes de seguridad deterministas</h2>
+  <p>Como el resultado de la herramienta del motor <strong>no es visible directamente para el usuario</strong> (la IA lo consume y decide cómo comunicarlo), el backend añade candados que garantizan la entrega correcta aunque el modelo se desvíe:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Salvaguarda</th><th>Qué garantiza</th></tr></thead>
+      <tbody>
+        <tr><td>Candado duro del RIA</td><td>El RIA solo se calcula con veredicto vigente <code>marn</code>. Con <code>dot</code> devuelve el bloqueo; sin veredicto o en revisión manual, exige verificar competencia primero.</td></tr>
+        <tr><td>Entrega del bloqueo (caminos 1A/1B)</td><td>Compone el mensaje canónico de redirección (mensaje de bloqueo + reporte técnico legal) y lo entrega, aunque la IA intente omitirlo.</td></tr>
+        <tr><td>Anexado de alertas (Camino 3)</td><td>Anexa las alertas de co-competencia al informe final <strong>una sola vez</strong>, porque el modelo podría no incluirlas por su cuenta.</td></tr>
+        <tr><td>Fuente única del veredicto</td><td>Tanto la invocación forzada como la herramienta vuelcan el resultado al mismo lugar del estado de sesión, evitando divergencias.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">10.</span>Persistencia</h2>
+  <p>Cada evaluación del motor se guarda versionada por fecha en <code>dot_competencia_evaluations</code> (veredicto, camino, autoridad destino, alertas, caso de regla, hechos, reporte técnico). La tabla de reglas <code>dot_competencia_reglas</code> es un <strong>catálogo</strong>: se edita en el DDL del esquema y se recarga por el endpoint de catálogo, sin migraciones de tipo <code>ALTER</code>. El motor además lee <code>ina_evaluations</code>, <code>isa_evaluations</code> y <code>pia_evaluations</code> para armar el contexto del proyecto, y el <a href="08-corpus-legal.html">corpus legal</a> para citar los artículos aplicables.</p>
+
+  <div class="callout info">
+    <div class="ct">🧭 Recapitulación</div>
+    <p>El Motor de Reglas SEA es la evolución de la compuerta DOT: <strong>cuatro caminos</strong>, <strong>seis autoridades destino</strong>, <strong>siete instituciones de alerta</strong>, reglas deterministas que sobrescriben a la IA, prevalencia de área crítica y un almacén de hechos acumulativo. Se dispara al ingreso, durante la conversación y como candado duro antes del RIA. Solo con veredicto <code>marn</code> el flujo llega al <a href="07-ria-cierre.html">cálculo del RIA</a>.</p>
+  </div>
+
+  <div class="pager">
+    <a href="05-orquestador.html"><div class="dir">← Anterior</div><div class="ti">Agente Orquestador</div></a>
+    <a class="next" href="07-ria-cierre.html"><div class="dir">Siguiente →</div><div class="ti">Cálculo del RIA e Informe</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

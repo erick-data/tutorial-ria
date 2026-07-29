@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIA · Potencial de Impacto · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › PIA</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--pia)">Índice 3 · endpoint pia/query</div>
+    <h1>PIA — Potencial de Impacto Ambiental</h1>
+    <p class="sub">El índice más complejo del sistema. Evalúa, aspecto por aspecto, cuánto impacto ambiental podría producir el proyecto. Combina el juicio de la IA con varias capas deterministas que refinan el resultado usando la geometría del ISA y reglas por tipo de actividad.</p>
+  </header>
+
+  <h2><span class="num">1.</span>La estructura: CEIA, aspectos y escenarios</h2>
+  <p>El PIA no es un solo número que sale directo: se construye recorriendo una matriz de evaluación. Conviene fijar tres conceptos.</p>
+
+  <div class="cards">
+    <div class="card c-pia">
+      <div class="role">10 categorías</div><h3>CEIA</h3>
+      <p>Categorías Estandarizadas de Impacto Ambiental. Son 10 grandes temas (calidad del aire, agua, suelo, etc.). El proyecto se evalúa contra todas.</p>
+    </div>
+    <div class="card c-pia">
+      <div class="role">44 criterios</div><h3>Aspecto ambiental</h3>
+      <p>Dentro de cada CEIA hay varios aspectos concretos. El aspecto es la <strong>unidad que se puntúa</strong> de 0 a 4. Hay 44 en total.</p>
+    </div>
+    <div class="card c-pia">
+      <div class="role">4 por aspecto</div><h3>Escenario</h3>
+      <p>Cada aspecto tiene 4 escenarios posibles (uno por cada nivel de impacto 1–4). La IA elige el escenario que mejor describe al proyecto, y ese escenario fija el valor.</p>
+    </div>
+  </div>
+
+  <h3>De los aspectos al valor PIA</h3>
+  <p>El cálculo agrega de abajo hacia arriba:</p>
+  <ul>
+    <li>Cada <strong>aspecto</strong> recibe un valor: 0 (no evaluable todavía), o 1–4 (Bajo, Leve, Moderado, Alto).</li>
+    <li>Cada <strong>CEIA</strong> toma el valor <strong>máximo</strong> de sus aspectos.</li>
+    <li>La <strong>suma de los 10 máximos</strong> es la <code>suma_CEIA</code> (rango 10–40).</li>
+    <li>Esa suma se traduce en el <strong>valor PIA final</strong> (1–4) mediante una escala de bandas.</li>
+  </ul>
+
+  <div class="tablewrap">
+    <table class="scale">
+      <thead><tr><th class="t-center">suma_CEIA</th><th class="t-center">valor PIA</th><th>Interpretación</th></tr></thead>
+      <tbody>
+        <tr><td>10</td><td class="t-center">1</td><td>Bajo</td></tr>
+        <tr><td>11 – 19</td><td class="t-center">2</td><td>Leve</td></tr>
+        <tr><td>20 – 30</td><td class="t-center">3</td><td>Moderado</td></tr>
+        <tr><td>31 – 40</td><td class="t-center">4</td><td>Alto</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout stop">
+    <div class="ct">🚧 Regla dura: un solo 0 detiene todo</div>
+    <p>Si <strong>cualquier</strong> aspecto queda en valor 0 (información insuficiente), el <code>valor_pia</code> del proyecto es <strong>0</strong> y la <code>suma_CEIA</code> es 0: la evaluación está incompleta y <strong>el RIA no puede calcularse</strong> hasta resolver ese pendiente. Esto obliga a completar la información antes de cerrar.</p>
+  </div>
+
+  <div class="callout warn">
+    <div class="ct">⚠️ Aclaración sobre la escala</div>
+    <p>La instrucción del PIA contiene, por un error histórico, <strong>dos escalas contradictorias</strong>. La escala vigente —la que aplica el sistema— es la de la tabla de arriba (10 / 11–19 / 20–30 / 31–40). La aritmética final siempre la recalcula el código de forma determinista, de modo que el resultado no depende de la ambigüedad del texto.</p>
+  </div>
+
+  <h2><span class="num">2.</span>El flujo del endpoint <span class="tool">pia/query</span></h2>
+  <p>Como INA e ISA, el PIA parte de una <strong>llamada directa a Gemini</strong> y luego aplica una <strong>cadena de refinamiento determinista</strong>. La idea rectora: <em>la IA propone, las reglas afinan</em>.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode start"><div class="ftitle">Descripción del proyecto + contexto</div><div class="fsub">Descripción técnica · códigos CIIU del INA · hechos geoespaciales del ISA</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq"><div class="ftitle">1 · Gemini asigna un valor tentativo por aspecto</div><div class="fsub">Elige el escenario aplicable y aplica observaciones/excepciones (interpretación de texto, incluidos extractos legales)</div></div>
+      <div class="farrow lbl" data-label="a partir de aquí, todo es determinista"></div>
+      <div class="fnode pia tool"><div class="ftitle">2 · Normaliza identificadores y avance</div><div class="fsub">Corrige los identificadores de aspecto/escenario contra el catálogo autoritativo (la IA no es fuente de verdad para los IDs)</div></div>
+      <div class="farrow"></div>
+      <div class="fnode isa tool"><div class="ftitle">3 · Pre-resolución con la geometría del ISA</div><div class="fsub">Donde el ISA prueba que el proyecto NO está en cierta zona, fija el aspecto en "sin impacto"</div></div>
+      <div class="farrow"></div>
+      <div class="fnode pia tool"><div class="ftitle">4 · Acciones de verificación por actividad</div><div class="fsub">Reglas ligadas al tipo de actividad (CIIU) que pueden bajar un aspecto a "sin impacto" o anexar advertencias</div></div>
+      <div class="farrow"></div>
+      <div class="fnode pia tool"><div class="ftitle">5 · Recalcula el valor PIA por bandas</div><div class="fsub">suma_CEIA → valor 1-4, de forma determinista, si hubo algún ajuste</div></div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">Resultado PIA</div><div class="fsub">valor 0-4 · suma_CEIA · detalle por CEIA y aspecto · dudas · advertencias</div></div>
+    </div>
+    <div class="cap">Diagrama 5 · Cadena de refinamiento del PIA. Solo el paso 1 usa IA; los pasos 2–5 son deterministas.</div>
+  </div>
+
+  <div class="callout key">
+    <div class="ct">🔑 "Refina, no reemplaza"</div>
+    <p>Las capas deterministas <strong>solo bajan</strong> un aspecto a "sin impacto" cuando hay evidencia (geometría o reglas de actividad); <strong>nunca suben</strong> el valor ni inventan escenarios. Si ninguna capa cambia nada, prevalece el valor que asignó la IA. El principio de diseño es "nunca degradar lo que ya funciona".</p>
+  </div>
+
+  <h2><span class="num">3.</span>Las dos capas de refinamiento en detalle</h2>
+
+  <h3>Capa A · Pre-resolución con la geometría del ISA</h3>
+  <p>Reutiliza el desglose geoespacial que produjo el <a href="03-isa.html">ISA</a>. Para un aspecto ambiental determinado, si <strong>todas</strong> las zonas asociadas llegaron con resultado "NO" (el proyecto no intersecta ninguna), el aspecto se fija automáticamente en "sin impacto". Es deliberadamente conservador: basta un "SÍ" (o un dato ausente) para <em>no</em> auto-resolver y dejar que la evaluación normal decida.</p>
+  <div class="callout info">
+    <div class="ct">Prioridad</div>
+    <p>Lo que resuelve la geometría del ISA es <strong>autoritativo</strong>: ninguna capa posterior lo sobrescribe. Es la fuente oficial de las condiciones territoriales.</p>
+  </div>
+
+  <h3>Capa B · Acciones de verificación por actividad</h3>
+  <p>Esta capa conecta el proyecto con reglas específicas de su <strong>tipo de actividad</strong>. El encadenamiento es: los <strong>códigos CIIU</strong> que identificó el INA → las <strong>subactividades</strong> correspondientes en un catálogo → las <strong>acciones de verificación</strong> que hay que satisfacer para confirmar cada escenario.</p>
+  <p>Cada "acción" describe <em>cómo</em> verificar si un escenario aplica. Se resuelven según su modo:</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Modo</th><th>Cómo se resuelve</th><th>¿Necesita al usuario?</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-auto">AUTO</span></td><td>El escenario aplica siempre, sin condición. Se selecciona directamente.</td><td>No</td></tr>
+        <tr><td><span class="badge b-isa">GEO</span></td><td>Compuerta territorial: se comprueba contra la geometría del ISA (¿el proyecto intersecta la capa?, ¿el valor ISA supera un umbral?).</td><td>No</td></tr>
+        <tr><td><span class="badge b-ask">ASK</span></td><td>Requiere un dato que solo el usuario puede aportar. Queda pendiente.</td><td>Sí</td></tr>
+        <tr><td><span class="badge b-ask">GEO+ASK</span></td><td>Primero la compuerta geográfica; si cierra en "no", se resuelve sin preguntar; si no, queda pendiente para el usuario.</td><td>Condicional</td></tr>
+        <tr><td><span class="badge b-warn">DATA</span></td><td>Requiere un valor numérico (p. ej. área de intervención). Hoy queda pendiente (resolución automática diferida).</td><td>Condicional</td></tr>
+        <tr><td><span class="badge">MODIFIER</span></td><td>Fuera de alcance por diseño (se ignora, para no duplicar el ajuste que ya hace el ISA).</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>El veredicto de cada celda usa lógica "OR": si alguna acción confirma el impacto, el escenario <strong>aplica</strong>; si todas lo descartan, es <strong>sin impacto</strong> (y solo entonces se baja el valor); si queda alguna duda, permanece <strong>pendiente</strong>.</p>
+
+  <div class="callout warn">
+    <div class="ct">⚠️ Advertencias de incompatibilidad (acciones 6 y 7)</div>
+    <p>Ciertas actividades sobre <strong>cuerpos de agua o mar territorial</strong> disparan una advertencia de "posible incompatibilidad". Cuando la geometría confirma que el proyecto sí intersecta esas zonas, el sistema <strong>antepone una nota de advertencia</strong> a la justificación del aspecto. Es importante: <strong>no bloquea, no cambia el valor ni la suma</strong>; solo informa. El único bloqueo terminal del sistema es la compuerta legal del <a href="06-motor-sea.html">Motor de Reglas SEA</a> (validada jurídicamente); una intersección con agua es advisoria, no una determinación legal.</p>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">📊 Alcance actual de esta capa</div>
+    <p>El catálogo de acciones por actividad cubre hoy una fracción de las clases CIIU (principalmente agricultura, pesca y minería). La <strong>mayoría de los proyectos reales</strong> aún no tienen reglas de acción y caen a un "camino de reserva" (<em>fallback</em>): se evalúan con el flujo PIA base, sin regresión. La cobertura crece a medida que se cargan más datos, sin necesidad de cambiar el programa.</p>
+  </div>
+
+  <h2><span class="num">4.</span>El flujo de "pendientes": cómo se completa un PIA incompleto</h2>
+  <p>Cuando un aspecto queda en 0, el PIA está incompleto. Cada aspecto pendiente lleva en su justificación una <strong>pregunta concreta</strong> sobre hechos verificables del proyecto (nunca pidiéndole al usuario que se autoclasifique). El <a href="05-orquestador.html">Orquestador</a> traslada esa pregunta, recoge la respuesta y dispara una <strong>actualización incremental</strong>.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode pia"><div class="ftitle">Un aspecto queda pendiente (valor 0)</div><div class="fsub">Su justificación incluye la pregunta a formular</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq"><div class="ftitle">El Orquestador pregunta al usuario</div><div class="fsub">Una sola pregunta por turno, traducida a lenguaje del proyecto</div></div>
+      <div class="farrow"></div>
+      <div class="fnode pia tool"><div class="ftitle">Actualización incremental (solo pendientes)</div><div class="fsub">La IA reevalúa SOLO los aspectos en 0, sin recalcular los ya resueltos. Se re-aplican las capas deterministas.</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision"><div class="q">¿Se resolvió?</div>¿La nueva información permitió asignar un valor 1–4?</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow yes" data-label="sí" style="height:34px"></div>
+          <div class="fnode pia"><div class="ftitle">Aspecto resuelto</div><div class="fsub">Se avanza al siguiente pendiente, o el PIA queda completo</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow no" data-label="no" style="height:34px"></div>
+          <div class="fnode pia"><div class="ftitle">Sigue pendiente</div><div class="fsub">Se explica qué faltó y se formula una contra-pregunta más precisa</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 6 · El ciclo de resolución de pendientes del PIA, coordinado por el Orquestador.</div>
+  </div>
+
+  <div class="callout ok">
+    <div class="ct">🔁 Protección contra bucles</div>
+    <p>Si tras varias rondas el número de pendientes no baja, un guardián del backend detiene el ciclo y muestra un mensaje de soporte (Call Center). Es una alerta <strong>no bloqueante</strong>: el usuario nunca queda atrapado, y el Orquestador sigue atendiéndolo con normalidad.</p>
+  </div>
+
+  <h2><span class="num">5.</span>Cómo se arma el prompt del PIA (y por qué importa)</h2>
+  <p>El catálogo de criterios del PIA es enorme. Inyectarlo crudo en cada prompt (unos 139.000 caracteres) provocaba <strong>respuestas vacías del modelo</strong> por sobrecarga del prompt. La solución fue reemplazar el volcado crudo por un <strong>bloque compacto generado desde la base de datos</strong>, que incluye solo lo necesario:</p>
+  <ul>
+    <li>Los criterios de cada aspecto (con sus escenarios y valores).</li>
+    <li>Las reglas de observaciones y excepciones, estructuradas.</li>
+    <li>Una sección de <strong>extractos legales</strong> con el texto exacto de los artículos citados (recuperados por <em>cita directa</em> desde el <a href="08-corpus-legal.html">corpus legal</a>, sin gastar embeddings), para que la IA pueda decidir si una excepción legal aplica leyendo la ley, sin memorizarla.</li>
+  </ul>
+  <p>Se añade además un bloque de <strong>hechos geoespaciales del ISA</strong>, que le indica al modelo la sensibilidad territorial oficial y le prohíbe preguntar al usuario datos que la geometría ya resolvió.</p>
+
+  <h2><span class="num">6.</span>Qué decide la IA y qué es determinista (resumen)</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Responsabilidad</th><th>Quién</th></tr></thead>
+      <tbody>
+        <tr><td>Elegir el escenario que describe al proyecto e interpretar observaciones/excepciones (incluida la lectura de extractos legales)</td><td><span class="badge b-orq">IA (Gemini)</span></td></tr>
+        <tr><td>Formular la pregunta cuando falta información (valor 0)</td><td><span class="badge b-orq">IA</span></td></tr>
+        <tr><td>Fijar los identificadores correctos de aspecto y escenario</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Pre-resolver con la geometría del ISA y con las acciones por actividad</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Sumar los máximos por CEIA y aplicar la escala de bandas</td><td><span class="badge b-auto">Determinista</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">7.</span>Persistencia</h2>
+  <p>Todo se guarda en la tabla <code>pia_evaluations</code>, agregando una fila por cada cálculo. Además del valor y la explicación, se guarda el <strong>detalle completo por CEIA y aspecto</strong> (con valores, escenarios elegidos, justificaciones, la fuente de cada decisión y las advertencias), la <code>suma_CEIA</code> y el modo de actualización. Ese detalle es lo que después alimenta el Informe Ejecutivo.</p>
+
+  <p style="color:var(--muted); font-size:.9rem">Las instrucciones completas del PIA (cálculo inicial y actualización de pendientes) están transcritas en la sección <a href="09-prompts.html#prompt-pia">Prompts</a>.</p>
+
+  <div class="pager">
+    <a href="03-isa.html"><div class="dir">← Anterior</div><div class="ti">ISA</div></a>
+    <a class="next" href="05-orquestador.html"><div class="dir">Siguiente →</div><div class="ti">Agente Orquestador y tools</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

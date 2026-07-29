@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISA · Significancia Ambiental · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › ISA</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--isa)">Índice 2 · endpoints isa/init + isa/query</div>
+    <h1>ISA — Significancia Ambiental del territorio</h1>
+    <p class="sub">Mide qué tan ambientalmente sensible es el lugar donde se ubica el proyecto. Es el índice más "físico": nace de un análisis geoespacial que cruza el polígono del proyecto contra capas ambientales oficiales. Además, su resultado alimenta directamente al PIA.</p>
+  </header>
+
+  <h2><span class="num">1.</span>Qué mide y cómo</h2>
+  <p>El ISA responde a: <strong>¿está el proyecto ubicado en un territorio ambientalmente sensible?</strong> Para responderlo, un servicio geoespacial externo del MARN toma el <strong>polígono de coordenadas</strong> del proyecto y lo intersecta contra capas ambientales: áreas naturales protegidas, cuerpos de agua, zonas de remanencia de ecosistemas, territorios de significancia, áreas de amortiguamiento, etc. Por cada capa devuelve si el proyecto la toca y con qué valor de criterio.</p>
+  <div class="tiles">
+    <div class="tile"><div class="v" style="color:var(--isa)">1 – 4</div><div class="l">Escala del valor ISA</div></div>
+    <div class="tile"><div class="v" style="color:var(--isa)">Polígono</div><div class="l">Entrada geoespacial</div></div>
+    <div class="tile"><div class="v" style="color:var(--isa)">API externa</div><div class="l">Quién hace la intersección</div></div>
+  </div>
+
+  <h2><span class="num">2.</span>Por qué son dos endpoints: init y query</h2>
+  <p>El análisis geoespacial es <strong>lento y asíncrono</strong>: el servicio externo puede tardar minutos en cruzar el polígono contra todas las capas. Por eso el proceso se parte en dos llamadas separadas en el tiempo.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode isa"><div class="ftitle"><span class="tool">isa/init</span> — dispara el cálculo</div><div class="fsub">Registra un marcador "pendiente" en base de datos y pide a la API externa que empiece a procesar el polígono. Habitualmente responde antes de que el análisis termine ("consulte en unos minutos").</div></div>
+      <div class="farrow lbl" data-label="esperar (el análisis corre del lado externo)"></div>
+      <div class="fnode isa"><div class="ftitle"><span class="tool">isa/query</span> — recoge el resultado</div><div class="fsub">Consulta a la API externa el resultado ya procesado, calcula el valor ISA con una regla fija, pide a la IA una explicación y actualiza el registro en base de datos.</div></div>
+    </div>
+    <div class="cap">Diagrama 3 · El ISA se dispara con <span class="tool">isa/init</span> y se recoge con <span class="tool">isa/query</span>. El código del proyecto une ambas llamadas.</div>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">⏱️ Tolerancia a demoras</div>
+    <p>Si la API externa no responde a tiempo durante <span class="tool">isa/init</span>, el sistema <strong>no falla</strong>: deja el registro como "pendiente" y confía en que <span class="tool">isa/query</span> lo recogerá más tarde. Este diseño evita que una demora de la georreferenciación bloquee todo el trámite.</p>
+  </div>
+
+  <h2><span class="num">3.</span>Cómo se calcula el valor ISA (regla determinista)</h2>
+  <p>Este es un punto contraintuitivo pero fundamental: <strong>el valor ISA no lo decide la inteligencia artificial</strong>. Lo calcula una regla de negocio fija sobre los resultados de la API externa. La instrucción del modelo lo dice explícitamente: <em>"El valor del ISA se determina por regla de negocio (no lo eliges tú)."</em></p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode wide isa tool"><div class="ftitle">1 · Toma el nodo de MAYOR ÁREA</div><div class="fsub">Entre todas las zonas que el proyecto intersecta, se elige la de mayor superficie de intersección</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide isa tool"><div class="ftitle">2 · Valor base = valor de criterio de ese nodo</div><div class="fsub">El valor de sensibilidad (1–4) asociado a esa zona</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision"><div class="q">Decisión</div>¿El proyecto interviene un "área de amortiguamiento" (zona de protección perimetral de un área sensible)?</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow yes" data-label="sí" style="height:34px"></div>
+          <div class="fnode isa"><div class="ftitle">valor = valor base + 1</div><div class="fsub">con tope máximo de 4</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow no" data-label="no" style="height:34px"></div>
+          <div class="fnode isa"><div class="ftitle">valor = valor base</div><div class="fsub">sin ajuste</div></div>
+        </div>
+      </div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">valor ISA final (1–4)</div></div>
+    </div>
+    <div class="cap">Diagrama 4 · Regla de cálculo del valor ISA: valor de criterio del nodo de mayor área, +1 si hay amortiguamiento, con tope 4.</div>
+  </div>
+
+  <h2><span class="num">4.</span>Entonces, ¿qué hace la IA en el ISA?</h2>
+  <p>La IA cumple un papel <strong>acotado y de solo redacción</strong>: recibe los resultados geoespaciales y escribe la <strong>explicación narrativa</strong> en lenguaje comprensible (qué polígono se evaluó, qué tipo de área se afecta, qué tan sensible es y por qué el valor lo refleja). El valor numérico que la IA pudiera sugerir <strong>se descarta y se sobrescribe</strong> con el que calculó la regla determinista.</p>
+  <div class="callout ok">
+    <div class="ct">🛡️ Robustez</div>
+    <p>Si la IA falla al redactar, el sistema genera una explicación automática de respaldo con el valor de la regla. El resultado del ISA <strong>nunca depende de que el modelo responda</strong>. La instrucción también prohíbe filtrar jerga técnica al usuario (nombres de campos crudos, siglas del catálogo externo): todo se parafrasea a lenguaje de dominio.</p>
+  </div>
+
+  <h2><span class="num">5.</span>El puente ISA → PIA (por qué el ISA importa doble)</h2>
+  <p>El ISA no solo aporta su valor al RIA. Su análisis geoespacial produce, además, un <strong>desglose por zona ambiental</strong> que el PIA reutiliza para no volver a preguntarle al usuario cosas que la geometría ya resolvió. Este es uno de los mecanismos más elegantes del sistema.</p>
+
+  <div class="panel tint-isa">
+    <h3 style="margin-top:0">Cómo funciona el puente</h3>
+    <ol>
+      <li>La API externa devuelve, por cada capa/zona, un identificador (<code>ID_ISA_SEA</code>) y un resultado <strong>SÍ</strong> (el proyecto intersecta esa zona) o <strong>NO</strong> (no la intersecta). Esto se guarda en la columna <code>resultados_pia</code> de la evaluación ISA.</li>
+      <li>El ISA y el PIA hablan "idiomas" distintos: el ISA usa identificadores de capa; el PIA usa identificadores de aspecto ambiental. Un catálogo de traducción (<code>isa_pia_map</code>) conecta ambos vocabularios.</li>
+      <li>Cuando la geometría dice con certeza que el proyecto <strong>NO</strong> está en ciertas zonas, el PIA puede fijar directamente el aspecto correspondiente en "sin impacto", sin molestar al usuario. Es el <em>lado seguro</em>: un "SÍ" nunca se auto-resuelve (el impacto aún depende de lo que haga el proyecto).</li>
+    </ol>
+    <p style="margin-bottom:0">El detalle completo de esta pre-resolución está en la sección <a href="04-pia.html">PIA</a>. Aquí basta con retener que <strong>el resultado geoespacial del ISA es "materia prima" para dos cosas</strong>: el valor ISA y el refinamiento del PIA.</p>
+  </div>
+
+  <h2><span class="num">6.</span>Entradas, salidas y persistencia</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Recibe</th><th>Devuelve</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tool">isa/init</span></td><td>Código, nombre, email, <strong>coordenadas del polígono</strong></td><td>Confirmación de que el cálculo se disparó (aún sin valores)</td></tr>
+        <tr><td><span class="tool">isa/query</span></td><td>Código del proyecto</td><td>valor ISA (1–4), explicación, supuestos, y el desglose por zona para el PIA</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Todo se guarda en la tabla <code>isa_evaluations</code>. Merece destacarse una columna: <code>resultados_pia</code> guarda el desglose geoespacial por zona (el insumo del PIA), y los metadatos guardan también la ubicación/dirección del proyecto, que se usará más adelante en el informe.</p>
+
+  <div class="callout warn">
+    <div class="ct">🔧 Estado de una parte del puente</div>
+    <p>Algunas capas geoespaciales (proximidad a cuerpos de agua, manantiales, intrusión salina) están <strong>mapeadas pero aún no consumidas</strong> por el PIA en su forma de "compuerta" (es una fase de integración pendiente). El puente hoy activo cubre la pre-resolución del lado seguro y la exposición de hechos territoriales al PIA.</p>
+  </div>
+
+  <p style="color:var(--muted); font-size:.9rem">La instrucción completa que recibe el modelo para redactar la explicación del ISA está transcrita en la sección <a href="09-prompts.html#prompt-isa">Prompts</a>.</p>
+
+  <div class="pager">
+    <a href="02-ina.html"><div class="dir">← Anterior</div><div class="ti">INA</div></a>
+    <a class="next" href="04-pia.html"><div class="dir">Siguiente →</div><div class="ti">PIA · Potencial de Impacto</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

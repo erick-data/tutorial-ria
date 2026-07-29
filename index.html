@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tutorial RIA — Environmental Risk AI (MARN)</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kicker">Reporte técnico ejecutivo · versión 2.0</div>
+    <h1>Cómo funciona el sistema de evaluación RIA</h1>
+    <p class="sub">Una guía completa del flujo operacional y funcional del sistema que evalúa el <strong>Riesgo de Impacto Ambiental (RIA)</strong> de un proyecto: cómo se calculan los índices, cómo interviene la inteligencia artificial, qué decisiones toma y cómo se produce la categorización ambiental final. Escrita para comprender el proceso completo sin necesidad de leer código.</p>
+  </header>
+
+  <div class="callout key">
+    <div class="ct">🆕 Novedades de la versión 2.0</div>
+    <p>Esta edición documenta las funcionalidades incorporadas en las últimas iteraciones del sistema. Tres cambios mayores respecto a la <strong>versión 1.0</strong>:</p>
+    <ul style="margin:.4em 0 0">
+      <li><strong>Motor de Reglas SEA</strong> — la antigua "compuerta DOT" (competencia binaria MARN/DOT) se generalizó a un motor que clasifica el trámite en <strong>cuatro caminos</strong> y puede redirigir a <strong>múltiples autoridades</strong> (DOT, ANDRES, MIVI, ASA, OPAMSS/APLAN, Alcaldía) o avanzar con <strong>alertas de co-competencia</strong> hacia otras instituciones.</li>
+      <li><strong>Corpus legal y RAG multi-ley</strong> — un almacén de leyes vectorizadas (pgvector) del que el sistema recupera artículos exactos por búsqueda semántica; alimenta al PIA, al Motor SEA y una nueva herramienta conversacional (<span class="tool">consultar_ley</span>).</li>
+      <li><strong>Salvaguardas deterministas reforzadas</strong> — invocación forzada del Motor SEA al ingreso, un <em>almacén de hechos</em> acumulativo por sesión y candados de código que garantizan el comportamiento aunque la IA se desvíe.</li>
+    </ul>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">📘 Cómo leer este documento</div>
+    <p>El tutorial está dividido en secciones independientes (menú superior). Puede leerse en orden o consultarse por tema. Todo el contenido es autocontenido: los prompts (las instrucciones que recibe la IA) están transcritos íntegramente en la sección <a href="09-prompts.html">Prompts</a>, y cada sección incluye diagramas de flujo con los puntos donde la IA toma decisiones.</p>
+  </div>
+
+  <h2><span class="num">1.</span>¿Qué es el RIA y qué resuelve el sistema?</h2>
+  <p>El <strong>RIA (Riesgo de Impacto Ambiental)</strong> es la métrica con la que el Ministerio de Medio Ambiente (MARN) clasifica un proyecto según el nivel de análisis ambiental que requiere. El sistema automatiza esa clasificación combinando <strong>tres índices independientes</strong> y una <strong>conversación asistida por IA</strong> que recopila la información del proyecto, la valida y produce un <strong>Informe Ejecutivo</strong> final.</p>
+
+  <div class="tiles">
+    <div class="tile"><div class="v" style="color:var(--ina)">INA</div><div class="l">Naturaleza y envergadura de la <em>actividad</em></div></div>
+    <div class="tile"><div class="v" style="color:var(--isa)">ISA</div><div class="l">Significancia ambiental del <em>territorio</em></div></div>
+    <div class="tile"><div class="v" style="color:var(--pia)">PIA</div><div class="l">Potencial de <em>impacto</em> por aspecto</div></div>
+    <div class="tile"><div class="v" style="color:var(--ria)">RIA</div><div class="l">= INA + ISA + PIA → categoría</div></div>
+  </div>
+
+  <p>Cada índice se mide en una escala de <strong>1 a 4</strong>. El RIA es la <strong>suma de los tres</strong> (rango 3 a 12) y esa suma determina la <strong>categoría ambiental</strong> del proyecto (bajo, leve, o moderado/alto). Antes de calcular el RIA, el <strong>Motor de Reglas SEA</strong> verifica que el trámite sea competencia del MARN y no de otra institución (DOT, ANDRES, MIVI, ASA, OPAMSS/APLAN o Alcaldía).</p>
+
+  <h2><span class="num">2.</span>El pipeline de extremo a extremo</h2>
+  <p>El sistema opera en <strong>dos grandes fases</strong>. Primero, una fase de <strong>siembra de datos</strong> en la que cuatro llamadas de servicio (endpoints) calculan y guardan en base de datos las evaluaciones iniciales de cada índice. Segundo, una fase <strong>conversacional</strong> en la que el Agente Orquestador (la IA) lee esas evaluaciones, completa lo que falte dialogando con la persona usuaria, aplica la compuerta legal y finalmente calcula el RIA y entrega el informe.</p>
+
+  <div class="flow" aria-label="Pipeline de extremo a extremo">
+    <div class="flow-col">
+
+      <div class="fnode start"><div class="ftitle">Proyecto a evaluar</div><div class="fsub">Descripción, actividades, coordenadas, magnitudes, fases</div></div>
+      <div class="farrow"></div>
+
+      <div class="fnode wide" style="background:var(--panel-2)">
+        <div class="ftitle">FASE A · Siembra de índices <span class="badge b-auto">endpoints de servicio</span></div>
+        <div class="fsub">Cuatro llamadas que calculan y persisten las evaluaciones iniciales, en este orden</div>
+      </div>
+      <div class="farrow"></div>
+
+      <div class="pipe" style="width:100%">
+        <div class="stage ep"><div class="n">1 · POST</div><div class="t" style="color:var(--ina)">ina/query</div><div class="d">Calcula INA (actividad económica → CIIU → valor 1-4). Guarda en <code>ina_evaluations</code>.</div></div>
+        <div class="stage ep"><div class="n">2 · POST</div><div class="t" style="color:var(--isa)">isa/init</div><div class="d">Dispara el análisis geoespacial del polígono en la API externa del MARN.</div></div>
+        <div class="stage ep"><div class="n">3 · POST</div><div class="t" style="color:var(--isa)">isa/query</div><div class="d">Recoge el resultado geoespacial, calcula ISA 1-4. Guarda en <code>isa_evaluations</code>.</div></div>
+        <div class="stage ep"><div class="n">4 · POST</div><div class="t" style="color:var(--pia)">pia/query</div><div class="d">Calcula PIA por aspecto ambiental. Guarda en <code>pia_evaluations</code>.</div></div>
+      </div>
+
+      <div class="farrow lbl" data-label="las 3 evaluaciones quedan en base de datos"></div>
+
+      <div class="fnode wide orq">
+        <div class="ftitle">FASE B · Conversación con el Agente Orquestador <span class="badge b-orq">IA · Gemini + Google ADK</span></div>
+        <div class="fsub">Lee las evaluaciones sembradas, dialoga con el usuario para completar lo pendiente y coordina el cierre</div>
+      </div>
+      <div class="farrow"></div>
+
+      <div class="fnode orq"><div class="ftitle">Recopila y valida información faltante</div><div class="fsub">Presenta listados de preguntas · refina aspectos PIA pendientes · aclara dudas del INA</div></div>
+      <div class="farrow"></div>
+
+      <div class="fdecision"><div class="q">Motor de Reglas SEA</div>¿De qué autoridad es competencia el trámite? (4 caminos)</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow no" style="height:34px"></div>
+          <div class="fnode endstop"><div class="ftitle">Caminos 1A / 1B → Bloqueo</div><div class="fsub">Redirección a la autoridad competente (DOT, ANDRES, MIVI…) o impedimento dimensional. No se calcula el RIA.</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow yes" style="height:34px"></div>
+          <div class="fnode ria"><div class="ftitle">Caminos 2 / 3 → MARN continúa</div><div class="fsub">Con INA, ISA y PIA completos (todos ≥ 1). El Camino 3 anexa alertas de co-competencia al informe.</div></div>
+          <div class="farrow"></div>
+          <div class="fnode ria"><div class="ftitle">Calcula RIA = INA + ISA + PIA</div><div class="fsub">Asigna categoría ambiental (N1/N2/N3)</div></div>
+          <div class="farrow"></div>
+          <div class="fnode endok"><div class="ftitle">Informe Ejecutivo RIA</div><div class="fsub">Se entrega al usuario y se guarda en <code>ria_evaluations</code></div></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="cap">Diagrama 1 · Recorrido completo del sistema, de la descripción del proyecto al Informe Ejecutivo RIA.</div>
+  </div>
+
+  <div class="callout key">
+    <div class="ct">🔑 Idea central</div>
+    <p>Los <strong>endpoints de la Fase A</strong> son cálculos dirigidos (una entrada → un valor de índice guardado). El <strong>Agente Orquestador de la Fase B</strong> es el único componente conversacional: no vuelve a calcular desde cero, sino que <em>consolida</em> lo ya sembrado, pide lo que falta y decide cuándo y cómo producir el resultado final.</p>
+  </div>
+
+  <h2><span class="num">3.</span>Explore por sección</h2>
+  <div class="cards">
+    <a class="card link c-brand" href="01-vision-general.html">
+      <div class="role">Fundamentos</div><h3>Visión general y arquitectura</h3>
+      <p>Qué es cada índice, cómo se relacionan, dónde interviene la IA y qué tecnología sostiene el sistema.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link c-ina" href="02-ina.html">
+      <div class="role">Índice 1</div><h3>INA · Naturaleza y Envergadura</h3>
+      <p>Cómo se clasifica la actividad económica del proyecto (CIIU) y se asigna un valor de envergadura.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link c-isa" href="03-isa.html">
+      <div class="role">Índice 2</div><h3>ISA · Significancia Ambiental</h3>
+      <p>El análisis geoespacial del territorio y por qué se separa en dos endpoints (init y query).</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link c-pia" href="04-pia.html">
+      <div class="role">Índice 3</div><h3>PIA · Potencial de Impacto</h3>
+      <p>El componente más complejo: aspectos ambientales, escenarios, acciones de verificación y refinamiento.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link c-orq" href="05-orquestador.html">
+      <div class="role">El cerebro conversacional</div><h3>Agente Orquestador y tools</h3>
+      <p>Todas las herramientas de la IA, el orden en que las invoca y su árbol de decisión completo.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link" href="06-motor-sea.html" style="border-left-color:var(--stop)">
+      <div class="role" style="color:var(--stop)">La compuerta legal · v2.0</div><h3>Motor de Reglas SEA</h3>
+      <p>La verificación de competencia multi-institución: cuatro caminos, redirección a otras autoridades y alertas de co-competencia.</p>
+      <div class="arrow" style="color:var(--stop)">Leer →</div>
+    </a>
+    <a class="card link c-ria" href="07-ria-cierre.html">
+      <div class="role">El cierre</div><h3>Cálculo del RIA e Informe</h3>
+      <p>La fórmula del RIA, la categorización ambiental, el informe ejecutivo final y sus redes de seguridad.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+    <a class="card link c-brand" href="08-corpus-legal.html">
+      <div class="role">La base de conocimiento · v2.0</div><h3>Corpus legal y RAG multi-ley</h3>
+      <p>Cómo se vectorizan las leyes, cómo se recuperan artículos por búsqueda semántica y la herramienta <span class="tool">consultar_ley</span>.</p>
+      <div class="arrow">Leer →</div>
+    </a>
+  </div>
+
+  <h2><span class="num">4.</span>Convenciones visuales</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Elemento</th><th>Significado</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-orq">IA</span> / color magenta</td><td>Componente conversacional (Agente Orquestador) o decisión tomada por la inteligencia artificial.</td></tr>
+        <tr><td><span class="badge b-auto">determinista</span> / color teal</td><td>Lógica ejecutada por reglas de programación fijas (sin IA): cálculos, búsquedas en base de datos, geometría.</td></tr>
+        <tr><td><span class="fdecision" style="display:inline-block;padding:3px 12px">◆ decisión</span></td><td>Punto de ramificación: el flujo toma un camino u otro según una condición.</td></tr>
+        <tr><td><span class="tool">nombre_tool</span></td><td>Una "herramienta" (tool): una capacidad concreta que la IA puede invocar durante la conversación.</td></tr>
+        <tr><td><code>tabla_bd</code></td><td>Una tabla de la base de datos donde se persiste información.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <span></span>
+    <a class="next" href="01-vision-general.html"><div class="dir">Siguiente →</div><div class="ti">Visión general y arquitectura</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cálculo del RIA e Informe · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › RIA y cierre</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--ria)">El cierre del proceso</div>
+    <h1>Cálculo del RIA e Informe Ejecutivo</h1>
+    <p class="sub">La etapa final. Una vez que el <a href="06-motor-sea.html">Motor de Reglas SEA</a> confirma que el trámite corresponde al MARN, se suman los tres índices para obtener el RIA, se le asigna una categoría ambiental y se redacta y guarda el Informe Ejecutivo.</p>
+  </header>
+
+  <h2><span class="num">1.</span>Precondiciones del cálculo del RIA</h2>
+  <p>Para que el RIA se calcule, deben cumplirse dos condiciones, en este orden:</p>
+  <ol>
+    <li><strong>Veredicto legal <code>marn</code></strong> vigente, emitido por el <a href="06-motor-sea.html">Motor de Reglas SEA</a> (caminos 2 o 3). Es un <strong>candado duro</strong>: sin este veredicto —o con veredicto <code>dot</code>— la herramienta de cálculo se niega a ejecutar.</li>
+    <li><strong>Los tres índices completos y en valor ≥ 1</strong>: INA, ISA y PIA presentes y distintos de cero. Un índice en 0 significa evaluación incompleta (por ejemplo, un aspecto PIA sin resolver) y detiene el cálculo con una explicación de qué falta.</li>
+  </ol>
+  <p>Adicionalmente, si la <strong>dirección física del proyecto</strong> aún no se conoce, el Orquestador la pide y la guarda antes de calcular, porque se necesita para el informe.</p>
+
+  <div class="callout stop">
+    <div class="ct">🔒 El doble candado</div>
+    <p>El bloqueo no depende solo de que la IA "se porte bien". Hay una <strong>regla dura en el código</strong>: el RIA <em>solo</em> se calcula si existe un veredicto vigente <code>marn</code>. Sin ese veredicto —o con veredicto <code>dot</code>— la herramienta <span class="tool">calculate_ria_tool</span> <strong>se niega a ejecutar</strong> y devuelve el bloqueo o exige verificar la competencia primero. Es a la vez una instrucción para la IA y un candado en el programa. El detalle está en la sección <a href="06-motor-sea.html">Motor de Reglas SEA</a>.</p>
+  </div>
+
+  <h2><span class="num">2.</span>El cálculo y la categorización</h2>
+  <p>Con las precondiciones cumplidas, el cálculo es una <strong>suma determinista</strong>, y la categoría surge de una tabla fija de rangos.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode ria"><div class="ftitle">RIA = INA + ISA + PIA</div><div class="fsub">Suma de los tres enteros (rango posible: 3 a 12)</div></div>
+      <div class="farrow"></div>
+      <div class="fnode ria tool"><div class="ftitle">Mapeo a categoría por rango</div></div>
+      <div class="farrow"></div>
+      <div class="fbranch">
+        <div class="flow-col"><div class="fnode" style="border-color:var(--ok)"><div class="ftitle">3 – 5 → N1</div><div class="fsub">Impacto potencial bajo (PIAB)</div></div></div>
+        <div class="flow-col"><div class="fnode" style="border-color:var(--warn)"><div class="ftitle">6 – 8 → N2</div><div class="fsub">Impacto potencial leve (PIAL)</div></div></div>
+        <div class="flow-col"><div class="fnode" style="border-color:var(--stop)"><div class="ftitle">9 – 12 → N3</div><div class="fsub">Impacto potencial moderado o alto (PIAMA)</div></div></div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 14 · Del valor RIA a la categoría ambiental.</div>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">📄 Categoría N1 y documentos</div>
+    <p>Cuando el proyecto resulta N1 (impacto bajo), el sistema vacía la lista de documentos ambientales requeridos: un proyecto de bajo impacto no necesita exigencias documentales adicionales.</p>
+  </div>
+
+  <p>La inteligencia artificial vuelve a intervenir solo para <strong>redactar la explicación</strong> del resultado en lenguaje profesional pero accesible: cómo se llegó al valor, qué significa la categoría y qué implica para el proyecto.</p>
+
+  <h2><span class="num">3.</span>El Informe Ejecutivo RIA</h2>
+  <p>Cuando el cálculo es exitoso, la única respuesta válida del Orquestador es el <strong>Informe Ejecutivo completo</strong>, siguiendo una plantilla fija. Su encabezado ("Informe Ejecutivo RIA") es un marcador que el sistema reconoce como el entregable final. Estructura:</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Sección</th><th>Contenido</th></tr></thead>
+      <tbody>
+        <tr><td>Perfil del Proyecto</td><td>Nombre, responsable, ubicación, fase, fuentes y un resumen narrativo.</td></tr>
+        <tr><td>Supuestos y Datos Faltantes</td><td>Lo que se asumió o quedó pendiente de confirmar.</td></tr>
+        <tr><td>Resultados de Índices</td><td>INA, ISA y PIA con su valor, síntesis y supuestos. El PIA incluye la suma CEIA y sus componentes críticos.</td></tr>
+        <tr><td>RIA Integrado</td><td>Valor RIA, sus componentes, y la categoría ambiental (nivel, categoría de impacto, rango, justificación).</td></tr>
+        <tr><td>Recomendaciones Clave</td><td>Acciones prioritarias.</td></tr>
+        <tr><td>Contacto</td><td>Mensaje del Call Center (📞 2207-9900).</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>El informe cierra siempre con la frase <strong>"La evaluación concluyó."</strong> y, tras entregarlo, el Orquestador no invoca más herramientas. La plantilla completa está transcrita en la sección <a href="09-prompts.html#prompt-ria">Prompts</a>.</p>
+
+  <div class="callout warn">
+    <div class="ct">ℹ️ Alertas de co-competencia en el informe</div>
+    <p>Si el trámite avanzó por el <strong>Camino 3</strong> del Motor de Reglas SEA (competencia MARN con co-competencia de otras instituciones), el sistema anexa al final del informe un bloque de <strong>alertas de coordinación interinstitucional</strong>. Es un backstop determinista: se agrega una sola vez, porque la IA podría omitirlo. Ver <a href="06-motor-sea.html">Motor de Reglas SEA</a>.</p>
+  </div>
+
+  <h2><span class="num">4.</span>Persistencia y red de seguridad del resumen</h2>
+  <p>El resultado se guarda en la tabla <code>ria_evaluations</code>: los tres valores de índice, el valor RIA, las explicaciones, la categoría y un <strong>resumen ejecutivo</strong>. Cada cálculo agrega una fila nueva (versionado por fecha).</p>
+  <div class="callout ok">
+    <div class="ct">🛟 Backstop del resumen ejecutivo</div>
+    <p>El resumen ejecutivo se extrae del texto del informe. Si esa extracción falla en el momento, o el sistema se reinicia, la fila podría quedar sin resumen. Un mecanismo de respaldo lo detecta y lo completa después —recuperando el texto del informe desde el histórico— e inserta una fila corregida. También existe una herramienta (<span class="tool">finalize_ria_pending_tool</span>) para que el usuario pueda pedir completar una evaluación que quedó a medias, sin recalcular nada.</p>
+  </div>
+
+  <h2><span class="num">5.</span>Resumen de compromisos del usuario</h2>
+  <p>De forma complementaria, existe un servicio que produce un <strong>resumen de los compromisos</strong> asumidos por el usuario durante la conversación (qué hará y cómo: actividades, maquinaria, medidas de mitigación, manejo de residuos, plazos). Recupera el Informe Ejecutivo más reciente y genera, con IA, un resumen centrado <em>exclusivamente</em> en lo que el usuario declaró que ejecutará, sin mezclar las explicaciones del sistema. Es útil como registro de lo que el titular del trámite se comprometió a cumplir.</p>
+
+  <h2><span class="num">6.</span>Recapitulación del cierre</h2>
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode" style="border-color:var(--stop)"><div class="ftitle">1 · Motor de Reglas SEA</div><div class="fsub">Veredicto marn (caminos 2 o 3) para continuar · candado duro</div></div>
+      <div class="farrow"></div>
+      <div class="fnode ria"><div class="ftitle">2 · Precondiciones</div><div class="fsub">Tres índices ≥ 1 · dirección disponible</div></div>
+      <div class="farrow"></div>
+      <div class="fnode ria"><div class="ftitle">3 · RIA = INA + ISA + PIA → categoría</div></div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">4 · Informe Ejecutivo + guardado</div><div class="fsub">Se entrega (con alertas si Camino 3), se cierra y se persiste en ria_evaluations</div></div>
+    </div>
+    <div class="cap">Diagrama 15 · El cierre, del veredicto de competencia al informe guardado.</div>
+  </div>
+
+  <div class="pager">
+    <a href="06-motor-sea.html"><div class="dir">← Anterior</div><div class="ti">Motor de Reglas SEA</div></a>
+    <a class="next" href="08-corpus-legal.html"><div class="dir">Siguiente →</div><div class="ti">Corpus legal y RAG multi-ley</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

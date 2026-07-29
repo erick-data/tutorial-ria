@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modelo relacional de las tablas PIA</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2430; --muted:#5c6b7a;
+    --line:#d9dee5; --shadow:0 1px 3px rgba(20,30,45,.08),0 8px 24px rgba(20,30,45,.06);
+    --bridge:#7c3aed; --bridge-soft:#f3ecff;
+    --dim1:#0ea5a4; --dim2:#2563eb; --dim3:#d97706; --dim4:#db2777; --dim5:#16a34a;
+    --code-bg:#f0f2f5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa7b4;
+      --line:#2a323c; --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+      --bridge:#a78bfa; --bridge-soft:#241a3a;
+      --dim1:#2dd4bf; --dim2:#60a5fa; --dim3:#fbbf24; --dim4:#f472b6; --dim5:#4ade80;
+      --code-bg:#0b0f14;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa7b4;
+    --line:#2a323c; --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+    --bridge:#a78bfa; --bridge-soft:#241a3a;
+    --dim1:#2dd4bf; --dim2:#60a5fa; --dim3:#fbbf24; --dim4:#f472b6; --dim5:#4ade80;
+    --code-bg:#0b0f14;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2430; --muted:#5c6b7a;
+    --line:#d9dee5; --shadow:0 1px 3px rgba(20,30,45,.08),0 8px 24px rgba(20,30,45,.06);
+    --bridge:#7c3aed; --bridge-soft:#f3ecff;
+    --dim1:#0ea5a4; --dim2:#2563eb; --dim3:#d97706; --dim4:#db2777; --dim5:#16a34a;
+    --code-bg:#f0f2f5;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:32px 20px 80px}
+  header.hero{margin-bottom:28px}
+  .kicker{font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--bridge); font-weight:700}
+  h1{font-size:2rem; margin:.2em 0 .1em; line-height:1.2}
+  .sub{color:var(--muted); font-size:1.05rem; max-width:70ch}
+  h2{font-size:1.35rem; margin:2.4em 0 .6em; border-bottom:1px solid var(--line); padding-bottom:.35em}
+  h3{font-size:1.05rem; margin:1.6em 0 .4em}
+  p{max-width:74ch}
+  code{background:var(--code-bg); padding:.12em .4em; border-radius:5px; font-size:.88em;
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  a{color:var(--dim2)}
+
+  /* ---- Diagram ---- */
+  .diagram-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:8px; overflow-x:auto;
+  }
+  .canvas{position:relative; width:920px; height:700px; margin:0 auto}
+  svg.wires{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1}
+  .node{
+    position:absolute; width:186px; background:var(--panel); z-index:2;
+    border:1.5px solid var(--line); border-radius:12px; box-shadow:var(--shadow);
+    cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    --accent:var(--muted);
+  }
+  .node:hover{transform:translateY(-3px)}
+  .node .nhead{
+    font-weight:700; font-size:.86rem; padding:9px 12px; border-radius:10px 10px 0 0;
+    color:#fff; background:var(--accent); display:flex; align-items:center; gap:7px;
+  }
+  .node .nhead .badge{margin-left:auto; font-size:.66rem; font-weight:600; background:rgba(255,255,255,.25);
+    padding:1px 7px; border-radius:20px}
+  .node ul{list-style:none; margin:0; padding:6px 0}
+  .node li{font-size:.76rem; padding:2px 12px; color:var(--ink); display:flex; gap:6px; align-items:baseline;
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  .node li .key{font-size:.62rem; font-weight:700; padding:0 5px; border-radius:4px; letter-spacing:.03em}
+  .node li .pk{background:var(--bridge-soft); color:var(--bridge)}
+  .node li .fk{background:rgba(37,99,235,.14); color:var(--dim2)}
+  .node li.dim{color:var(--muted)}
+  .node.faded{opacity:.22}
+  .node.active{box-shadow:0 0 0 3px var(--accent), var(--shadow)}
+  .wire{stroke-width:2; fill:none; transition:opacity .15s, stroke-width .15s}
+  .wire.faded{opacity:.12}
+  .wire.active{stroke-width:3.5}
+  .wire-label{font-size:11px; font-weight:600; fill:var(--muted);
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  .wire-label.faded{opacity:.12}
+
+  .accent-bridge{--accent:var(--bridge)}
+  .accent-1{--accent:var(--dim1)} .accent-2{--accent:var(--dim2)}
+  .accent-3{--accent:var(--dim3)} .accent-4{--accent:var(--dim4)} .accent-5{--accent:var(--dim5)}
+
+  .hint{text-align:center; color:var(--muted); font-size:.82rem; margin:4px 0 12px}
+
+  /* ---- Cards ---- */
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; margin-top:14px}
+  .card{background:var(--panel); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
+    padding:16px 18px; box-shadow:var(--shadow)}
+  .card h3{margin:0 0 2px; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.98rem}
+  .card .role{font-size:.74rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700}
+  .card p{font-size:.86rem; margin:.6em 0 .4em; color:var(--ink)}
+  .card .cols{font-size:.76rem; color:var(--muted); font-family:"SF Mono",ui-monospace,Menlo,monospace}
+  .card .n{float:right; font-size:.72rem; color:var(--muted); font-weight:600}
+  .c1{border-left-color:var(--dim1)} .c2{border-left-color:var(--dim2)} .c3{border-left-color:var(--dim3)}
+  .c4{border-left-color:var(--dim4)} .c5{border-left-color:var(--dim5)} .cb{border-left-color:var(--bridge)}
+
+  /* ---- Example trace ---- */
+  .trace{background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+    padding:20px 22px; margin-top:14px}
+  .rowchip{display:inline-block; background:var(--bridge-soft); color:var(--bridge); border:1px solid var(--bridge);
+    padding:2px 9px; border-radius:8px; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.8rem;
+    margin:2px 4px 2px 0; font-weight:600}
+  .steps{list-style:none; padding:0; margin:14px 0 0; counter-reset:s}
+  .steps li{position:relative; padding:12px 0 12px 46px; border-top:1px solid var(--line); counter-increment:s}
+  .steps li:first-child{border-top:none}
+  .steps li::before{content:counter(s); position:absolute; left:0; top:12px; width:30px; height:30px;
+    background:var(--bridge); color:#fff; border-radius:50%; display:grid; place-items:center;
+    font-weight:700; font-size:.86rem}
+  .steps b{font-family:"SF Mono",ui-monospace,Menlo,monospace; color:var(--ink)}
+  .steps .val{color:var(--muted)}
+
+  .note{background:var(--bridge-soft); border:1px solid var(--line); border-left:4px solid var(--dim3);
+    border-radius:10px; padding:12px 16px; margin-top:16px; font-size:.88rem}
+  .note b{color:var(--dim3)}
+
+  .legend{display:flex; flex-wrap:wrap; gap:14px 22px; margin:10px 0 0; font-size:.82rem; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:7px}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+  .toggle{position:fixed; top:14px; right:14px; z-index:10; background:var(--panel); color:var(--ink);
+    border:1px solid var(--line); border-radius:20px; padding:6px 14px; cursor:pointer; font-size:.8rem;
+    box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+<button class="toggle" id="themeToggle">◐ Tema</button>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kicker">Tutorial · Base de conocimiento PIA</div>
+    <h1>Modelo relacional de las tablas PIA</h1>
+    <p class="sub">Cómo se conectan las seis tablas del catálogo de <b>Potencial de Impacto Ambiental</b>
+    (matrices PIA): una tabla puente central que combina cinco catálogos independientes para decidir
+    <em>qué acción de verificación aplica</em> en cada situación.</p>
+  </header>
+
+  <h2>La idea en una frase</h2>
+  <p>El modelo es un <b>esquema en estrella (star schema) con una ramificación</b>. En el centro está
+  <code>catalogo_aplica</code>, una <b>tabla puente</b> (bridge / matriz de hechos) que no describe nada por
+  sí misma: solo enlaza. Cada una de sus filas dice <em>«esta combinación de categoría + aspecto + escenario +
+  subactividad dispara esta acción de verificación»</em>. Alrededor cuelgan cinco catálogos que dan significado
+  a esos identificadores. Uno de ellos, <code>escenarios_pia</code>, cuelga a su vez de <code>ceia_pia</code>
+  (por eso hay una rama, o «copo de nieve»).</p>
+
+  <h2>Diagrama interactivo</h2>
+  <p class="hint">Pasa el cursor (o toca) sobre cualquier tabla para resaltar sus relaciones · <b>PK</b> = clave primaria · <b>FK</b> = clave foránea</p>
+
+  <div class="diagram-panel">
+    <div class="canvas" id="canvas">
+      <svg class="wires" id="wires" viewBox="0 0 920 700" preserveAspectRatio="none"></svg>
+
+      <!-- BRIDGE -->
+      <div class="node accent-bridge" id="catalogo_aplica" style="left:367px; top:290px;">
+        <div class="nhead">catalogo_aplica <span class="badge">≈6.945</span></div>
+        <ul>
+          <li><span class="key fk">FK</span> ID_CEIA</li>
+          <li><span class="key fk">FK</span> ID_ASAM</li>
+          <li><span class="key fk">FK</span> ID_ESCENARIO</li>
+          <li><span class="key fk">FK</span> ID_SUBACTIVIDAD</li>
+          <li><span class="key fk">FK</span> ID_ACCION_PIA</li>
+          <li class="dim">SUBACTIVIDAD</li>
+        </ul>
+      </div>
+
+      <!-- ceia -->
+      <div class="node accent-1" id="ceia_pia" style="left:40px; top:34px;">
+        <div class="nhead">ceia_pia <span class="badge">10</span></div>
+        <ul>
+          <li><span class="key pk">PK</span> ID_CEIA</li>
+          <li class="dim">CEIA</li>
+          <li class="dim">CA</li>
+        </ul>
+      </div>
+
+      <!-- aspecto -->
+      <div class="node accent-2" id="aspecto_ambiental_pia" style="left:694px; top:34px;">
+        <div class="nhead">aspecto_ambiental_pia <span class="badge">44</span></div>
+        <ul>
+          <li><span class="key pk">PK</span> ID_ASAM</li>
+          <li class="dim">ASPECTO_AMBIENTAL</li>
+        </ul>
+      </div>
+
+      <!-- escenarios -->
+      <div class="node accent-1" id="escenarios_pia" style="left:40px; top:300px;">
+        <div class="nhead">escenarios_pia <span class="badge">113</span></div>
+        <ul>
+          <li><span class="key pk">PK</span> ID_ESCENARIO</li>
+          <li><span class="key fk">FK</span> ID_CEIA</li>
+          <li class="dim">CATEGORIA · ESCENARIO</li>
+          <li class="dim">PONDERACION · POSITIVO</li>
+        </ul>
+      </div>
+
+      <!-- acciones -->
+      <div class="node accent-4" id="acciones_verificacion_pia" style="left:80px; top:582px;">
+        <div class="nhead">acciones_verificacion_pia <span class="badge">30</span></div>
+        <ul>
+          <li><span class="key pk">PK</span> ID_ACCION_PIA</li>
+          <li class="dim">ACCION</li>
+          <li class="dim">ACCION_PIA</li>
+        </ul>
+      </div>
+
+      <!-- subactividad -->
+      <div class="node accent-3" id="subactividad_pia" style="left:660px; top:560px;">
+        <div class="nhead">subactividad_pia <span class="badge">≈2.893</span></div>
+        <ul>
+          <li><span class="key pk">PK</span> ID_SUBACTIVIDAD</li>
+          <li class="dim">SUBACTIVIDAD</li>
+          <li class="dim">CLASE · INA · ESCENARIO</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--bridge)"></span> Tabla puente (hechos)</span>
+    <span><span class="dot" style="background:var(--dim1)"></span> Categoría / Escenario (rama)</span>
+    <span><span class="dot" style="background:var(--dim2)"></span> Aspecto ambiental</span>
+    <span><span class="dot" style="background:var(--dim3)"></span> Subactividad</span>
+    <span><span class="dot" style="background:var(--dim4)"></span> Acción de verificación</span>
+  </div>
+
+  <div class="note">
+    <b>Nota de nomenclatura.</b> En el DDL (<code>schema_info.sql</code>) la columna es
+    <code>ID_SUBACTIVIDAD</code>, pero en los archivos de carga <code>nuevas_tablas/*.jsonl</code> aparece como
+    <code>ID_SUB_ACTIVIDAD</code>. Se refieren al mismo campo; conviene homlogar antes de ingerir para que la
+    FK resuelva contra <code>subactividad_pia(ID_SUBACTIVIDAD)</code>.
+  </div>
+
+  <h2>Las tablas, una por una</h2>
+  <div class="cards">
+    <div class="card cb">
+      <span class="n">≈6.945 filas</span>
+      <span class="role">Tabla puente · hechos</span>
+      <h3>catalogo_aplica</h3>
+      <p>El corazón del modelo. Cada fila es una combinación válida que <b>activa una acción</b>. Su clave
+      primaria es compuesta por las cinco FK: <code>(ID_CEIA, ID_ASAM, ID_ESCENARIO, ID_SUBACTIVIDAD,
+      ID_ACCION_PIA)</code>. No hay datos descriptivos propios — solo la relación N:M entre los catálogos.</p>
+      <div class="cols">→ ceia_pia, aspecto_ambiental_pia, escenarios_pia, subactividad_pia, acciones_verificacion_pia</div>
+    </div>
+
+    <div class="card c1">
+      <span class="n">10 filas</span>
+      <span class="role">Catálogo raíz</span>
+      <h3>ceia_pia</h3>
+      <p>Categorías de Efecto/Impacto Ambiental (CEIA): p. ej. <em>«Erosión del terreno»</em>, <em>«Alteración
+      de la calidad del aire»</em>. <code>CA</code> es el componente ambiental (Aire, Suelo…). Es la tabla de
+      la que dependen los escenarios.</p>
+      <div class="cols">PK: ID_CEIA</div>
+    </div>
+
+    <div class="card c1">
+      <span class="n">113 filas</span>
+      <span class="role">Catálogo · rama de ceia_pia</span>
+      <h3>escenarios_pia</h3>
+      <p>Descripciones concretas de situaciones dentro de una categoría, con su <code>PONDERACION</code> (peso
+      del criterio) y <code>POSITIVO</code>. <b>Cada escenario pertenece a un CEIA</b> vía
+      <code>ID_CEIA → ceia_pia</code>.</p>
+      <div class="cols">PK: ID_ESCENARIO · FK: ID_CEIA</div>
+    </div>
+
+    <div class="card c2">
+      <span class="n">44 filas</span>
+      <span class="role">Catálogo</span>
+      <h3>aspecto_ambiental_pia</h3>
+      <p>Aspectos ambientales evaluables: <em>«Transformación de suelo»</em>, <em>«Emisiones de gases y
+      partículas»</em>, etc. Catálogo plano de referencia.</p>
+      <div class="cols">PK: ID_ASAM</div>
+    </div>
+
+    <div class="card c3">
+      <span class="n">≈2.893 filas</span>
+      <span class="role">Catálogo</span>
+      <h3>subactividad_pia</h3>
+      <p>Subactividades del proyecto (p. ej. <em>«Cultivo de trigo»</em>), ligadas al árbol de actividades
+      INA/CIIU. Es el catálogo más grande y aterriza el modelo en lo que el proyecto realmente hace.</p>
+      <div class="cols">PK: ID_SUBACTIVIDAD</div>
+    </div>
+
+    <div class="card c4">
+      <span class="n">30 filas</span>
+      <span class="role">Catálogo · destino</span>
+      <h3>acciones_verificacion_pia</h3>
+      <p>La acción que el sistema debe ejecutar cuando la combinación aplica: seleccionar siempre, preguntar
+      al usuario, <em>«verificar mapa ISA 3 o 4»</em>, etc. Es el <b>«qué hacer»</b> al que apunta cada fila
+      del puente.</p>
+      <div class="cols">PK: ID_ACCION_PIA</div>
+    </div>
+  </div>
+
+  <h2>Ejemplo: siguiendo una fila real</h2>
+  <div class="trace">
+    <p>Tomemos la primera fila de <code>catalogo_aplica</code> y resolvamos cada FK contra su catálogo:</p>
+    <div>
+      <span class="rowchip">ID_CEIA: 3</span>
+      <span class="rowchip">ID_ASAM: 7</span>
+      <span class="rowchip">ID_ESCENARIO: 20</span>
+      <span class="rowchip">ID_SUBACTIVIDAD: 1</span>
+      <span class="rowchip">ID_ACCION_PIA: 4</span>
+    </div>
+    <ol class="steps">
+      <li><b>ceia_pia[3]</b> → <span class="val">«EROSIÓN DEL TERRENO» (componente: Suelo)</span></li>
+      <li><b>aspecto_ambiental_pia[7]</b> → <span class="val">«Transformación de suelo»</span></li>
+      <li><b>escenarios_pia[20]</b> → <span class="val">«El proyecto requiere de la remoción (descapote,
+        nivelación)» — ponderación 2, y pertenece al CEIA 3 (coincide con el paso 1 ✓)</span></li>
+      <li><b>subactividad_pia[1]</b> → <span class="val">«Cultivo de trigo»</span></li>
+      <li><b>acciones_verificacion_pia[4]</b> → <span class="val">«Seleccionar siempre que el área de
+        intervención intersecte áreas de interés ambiental con ISA igual a 3 o 4»</span></li>
+    </ol>
+    <p style="margin-top:16px"><b>Lectura completa:</b> <em>para un proyecto de «cultivo de trigo» que provoca
+    «erosión del terreno» por «transformación de suelo», y cuyo escenario es la remoción/descapote, el sistema
+    debe verificar el mapa ISA y seleccionar la acción si el área intersecta zonas con ISA 3 o 4.</em>
+    Esa frase entera es lo que codifica una sola fila del puente.</p>
+  </div>
+
+  <h2>Cómo consultarlo en SQL</h2>
+  <p>La consulta canónica es un <code>JOIN</code> del puente contra los cinco catálogos (y el escenario contra
+  su CEIA para validar coherencia):</p>
+  <pre style="background:var(--code-bg); border:1px solid var(--line); border-radius:10px; padding:16px; overflow-x:auto; font-size:.82rem; line-height:1.5"><code>SELECT c.CEIA, a.ASPECTO_AMBIENTAL, e.ESCENARIO, e.PONDERACION,
+       s.SUBACTIVIDAD, ac.ACCION_PIA
+FROM   catalogo_aplica ca
+JOIN   ceia_pia                  c  ON c.ID_CEIA        = ca.ID_CEIA
+JOIN   aspecto_ambiental_pia     a  ON a.ID_ASAM        = ca.ID_ASAM
+JOIN   escenarios_pia            e  ON e.ID_ESCENARIO   = ca.ID_ESCENARIO
+JOIN   subactividad_pia          s  ON s.ID_SUBACTIVIDAD= ca.ID_SUBACTIVIDAD
+JOIN   acciones_verificacion_pia ac ON ac.ID_ACCION_PIA = ca.ID_ACCION_PIA
+WHERE  s.SUBACTIVIDAD ILIKE '%trigo%';</code></pre>
+
+  <h2>La capa de acciones: refinamiento del valor PIA</h2>
+  <p>Además de describir el modelo, <code>catalogo_aplica</code> alimenta un <b>refinamiento
+  determinista</b> del cálculo PIA. Por cada aspecto, la <b>acción de verificación</b> que
+  corresponde a la(s) actividad(es) del proyecto puede <b>bajar el escenario a no-impacto</b>
+  cuando el georreferenciado del ISA no lo respalda — <b>nunca infla</b> el valor.</p>
+
+  <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:18px 0; font-size:.8rem">
+    <div style="flex:1 1 130px; min-width:120px; background:var(--panel); border:1.5px solid var(--dim2); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>INA</b><br><span style="color:var(--muted)">CIIU identificadas (código de clase)</span></div>
+    <div style="color:var(--muted); font-weight:700">→</div>
+    <div style="flex:1 1 130px; min-width:120px; background:var(--panel); border:1.5px solid var(--dim3); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>subactividad_pia</b><br><span style="color:var(--muted)">match por CLASE + narrowing semántico (embeddings)</span></div>
+    <div style="color:var(--muted); font-weight:700">→</div>
+    <div style="flex:1 1 130px; min-width:120px; background:var(--panel); border:1.5px solid var(--bridge); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>catalogo_aplica</b><br><span style="color:var(--muted)">celda (aspecto, escenario, subactividad) → acción</span></div>
+    <div style="color:var(--muted); font-weight:700">→</div>
+    <div style="flex:1 1 130px; min-width:120px; background:var(--panel); border:1.5px solid var(--dim4); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>accion_pia_capa</b><br><span style="color:var(--muted)">capa(s) ISA / umbral que verifica la acción</span></div>
+    <div style="color:var(--muted); font-weight:700">→</div>
+    <div style="flex:1 1 130px; min-width:120px; background:var(--panel); border:1.5px solid var(--dim1); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>hechos ISA</b><br><span style="color:var(--muted)">intersección SÍ/NO (resultados_pia) / valor_isa</span></div>
+    <div style="color:var(--muted); font-weight:700">→</div>
+    <div style="flex:1 1 130px; min-width:120px; background:var(--bridge-soft); border:1.5px solid var(--bridge); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow)"><b>valor PIA</b><br><span style="color:var(--muted)">confirma / baja a no-impacto (+ advertencias)</span></div>
+  </div>
+
+  <h3>De la actividad del proyecto a la acción</h3>
+  <p>El <b>INA</b> identifica las clases CIIU del proyecto (p. ej. <code>0111</code>). Esas clases
+  se resuelven a <b>subactividades</b> presentes en <code>catalogo_aplica</code>, y un
+  <b>narrowing por similitud semántica</b> (embeddings del texto del INA contra los nombres de
+  subactividad) las estrecha a las que el proyecto realmente hace. Para cada aspecto evaluado, la
+  celda <code>(id_asam, id_escenario, id_subactividad)</code> apunta a una <b>acción</b>, cuya
+  compuerta se resuelve contra los <b>hechos georref del ISA</b>.</p>
+
+  <div class="cards">
+    <div class="card c4">
+      <span class="n">≈15 acciones GEO</span>
+      <span class="role">Tabla puente · nueva</span>
+      <h3>accion_pia_capa</h3>
+      <p>Mapa <code>id_accion_pia → capa(s) ISA</code> (<code>id_isa_sea</code>) o
+      <b>umbral</b> de significancia. Insumo del modo <b>GEO</b>: traduce cada acción geoespacial
+      a las capas que debe consultar en <code>resultados_pia</code>. Solo las acciones GEO tienen
+      filas; AUTO/ASK/DATA no.</p>
+      <div class="cols">tipo: capa | umbral · FK: id_accion_pia · ref lógica: id_isa_sea (isa_pia_map)</div>
+    </div>
+  </div>
+
+  <h3>Modos de acción</h3>
+  <div style="overflow-x:auto">
+  <table style="border-collapse:collapse; width:100%; font-size:.86rem; margin-top:8px">
+    <thead><tr style="text-align:left; border-bottom:2px solid var(--line)">
+      <th style="padding:6px 10px">Modo</th><th style="padding:6px 10px">Ejemplo</th><th style="padding:6px 10px">Cómo se resuelve</th></tr></thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 10px"><b>AUTO</b></td><td style="padding:6px 10px">1 — seleccionar siempre</td><td style="padding:6px 10px">Aplica directo (determinista)</td></tr>
+      <tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 10px"><b>GEO</b></td><td style="padding:6px 10px">4 — verificar ISA 3/4</td><td style="padding:6px 10px">Intersección de capa / umbral vs hechos ISA (determinista)</td></tr>
+      <tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 10px"><b>GEO+ASK</b></td><td style="padding:6px 10px">6 — agua/mar con confirmación</td><td style="padding:6px 10px">Si GEO=NO cierra; si SÍ, confirmación (flujo de pendientes)</td></tr>
+      <tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 10px"><b>ASK / DATA</b></td><td style="padding:6px 10px">2 — preguntar · 12 — valor del área</td><td style="padding:6px 10px">Se apoyan en el LLM + flujo de pendientes</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Advertencias de incompatibilidad.</b> Las acciones 6 y 7 (cuerpos de agua / mar territorial),
+    cuando el proyecto intersecta esas zonas, anexan una nota <b>⚠ posible incompatibilidad</b> a la
+    justificación del criterio — <b>no bloquean</b> ni alteran el valor; se muestran en el Informe
+    Ejecutivo RIA y en el admin.
+  </div>
+
+  <p style="margin-top:32px; color:var(--muted); font-size:.82rem">
+  Fuente: <code>database/schema_info.sql</code> (DDL) y <code>database/matrices_pia/*.jsonl</code>
+  (datos, incluido <code>accion_pia_capa.jsonl</code>). Lógica: <code>marn/application/services/</code>
+  (<code>pia_action_resolver.py</code>, <code>pia_action_gate.py</code>,
+  <code>pia_calculation_service.py</code>). Detalle en <code>docs/PLAN_INTEGRACION_ACCIONES_PIA.md</code>.
+  Conteos de filas aproximados a la fecha de este documento.</p>
+
+</div>
+
+<script>
+(function(){
+  // ---- theme toggle ----
+  var btn = document.getElementById('themeToggle');
+  btn.addEventListener('click', function(){
+    var root = document.documentElement;
+    var cur = root.getAttribute('data-theme');
+    if(!cur){
+      cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    draw();
+  });
+
+  // ---- relationships: [from, to, label, colorVar] ----
+  var edges = [
+    ['catalogo_aplica','ceia_pia','ID_CEIA','--dim1'],
+    ['catalogo_aplica','aspecto_ambiental_pia','ID_ASAM','--dim2'],
+    ['catalogo_aplica','escenarios_pia','ID_ESCENARIO','--dim1'],
+    ['catalogo_aplica','subactividad_pia','ID_SUBACTIVIDAD','--dim3'],
+    ['catalogo_aplica','acciones_verificacion_pia','ID_ACCION_PIA','--dim4'],
+    ['escenarios_pia','ceia_pia','ID_CEIA','--dim1']
+  ];
+
+  var canvas = document.getElementById('canvas');
+  var svg = document.getElementById('wires');
+  var VB = 920, VBH = 700;
+
+  function centerOf(id){
+    var el = document.getElementById(id);
+    var cr = canvas.getBoundingClientRect();
+    var er = el.getBoundingClientRect();
+    var scaleX = VB / cr.width, scaleY = VBH / cr.height;
+    return {
+      x: (er.left - cr.left + er.width/2) * scaleX,
+      y: (er.top - cr.top + er.height/2) * scaleY,
+      w: er.width * scaleX, h: er.height * scaleY,
+      el: el
+    };
+  }
+  function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  var wireEls = [];
+  function draw(){
+    svg.innerHTML = '';
+    wireEls = [];
+    edges.forEach(function(e, i){
+      var a = centerOf(e[0]), b = centerOf(e[1]);
+      var col = css(e[3]);
+      var path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      // gentle curve
+      var mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      var dx = b.x-a.x, dy = b.y-a.y;
+      var norm = Math.sqrt(dx*dx+dy*dy)||1;
+      var off = 26;
+      var cx = mx + (-dy/norm)*off, cy = my + (dx/norm)*off;
+      path.setAttribute('d','M '+a.x+' '+a.y+' Q '+cx+' '+cy+' '+b.x+' '+b.y);
+      path.setAttribute('class','wire');
+      path.setAttribute('stroke',col);
+      path.dataset.a = e[0]; path.dataset.b = e[1];
+      svg.appendChild(path);
+
+      var lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.setAttribute('x', cx); lbl.setAttribute('y', cy);
+      lbl.setAttribute('text-anchor','middle');
+      lbl.setAttribute('class','wire-label');
+      lbl.textContent = e[2];
+      lbl.dataset.a = e[0]; lbl.dataset.b = e[1];
+      svg.appendChild(lbl);
+
+      wireEls.push({path:path, lbl:lbl, a:e[0], b:e[1]});
+    });
+  }
+
+  function highlight(id){
+    var nodes = document.querySelectorAll('.node');
+    var connected = {};
+    connected[id] = true;
+    edges.forEach(function(e){
+      if(e[0]===id) connected[e[1]]=true;
+      if(e[1]===id) connected[e[0]]=true;
+    });
+    nodes.forEach(function(n){
+      if(connected[n.id]){ n.classList.remove('faded'); n.classList.toggle('active', n.id===id); }
+      else { n.classList.add('faded'); n.classList.remove('active'); }
+    });
+    wireEls.forEach(function(w){
+      var on = (w.a===id || w.b===id);
+      w.path.classList.toggle('active', on);
+      w.path.classList.toggle('faded', !on);
+      w.lbl.classList.toggle('faded', !on);
+    });
+  }
+  function reset(){
+    document.querySelectorAll('.node').forEach(function(n){ n.classList.remove('faded','active'); });
+    wireEls.forEach(function(w){ w.path.classList.remove('active','faded'); w.lbl.classList.remove('faded'); });
+  }
+
+  document.querySelectorAll('.node').forEach(function(n){
+    n.addEventListener('mouseenter', function(){ highlight(n.id); });
+    n.addEventListener('mouseleave', reset);
+    n.addEventListener('click', function(){ highlight(n.id); });
+  });
+
+  draw();
+  window.addEventListener('resize', draw);
+})();
+</script>
+</body>
+</html>

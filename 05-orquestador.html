@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente Orquestador y tools · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › Orquestador</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--orq)">El cerebro conversacional</div>
+    <h1>El Agente Orquestador RIA</h1>
+    <p class="sub">Es el único componente que conversa con la persona usuaria. No calcula los índices por sí mismo: coordina. Decide qué preguntar, qué herramienta invocar y en qué orden, siguiendo un árbol de decisión estricto, hasta producir el Informe Ejecutivo. Esta sección detalla todas sus herramientas y todas sus decisiones.</p>
+  </header>
+
+  <h2><span class="num">1.</span>Quién es y cómo trabaja</h2>
+  <dl class="meta">
+    <dt>Qué es</dt><dd>Un <strong>agente conversacional</strong> construido con el Google Agent Developer Kit (ADK), impulsado por el modelo Gemini. Razona internamente antes de responder (planificación con "pensamientos").</dd>
+    <dt>Idioma</dt><dd>Responde <strong>siempre en español neutro</strong>, aunque el usuario escriba en otro idioma.</dd>
+    <dt>Estilo</dt><dd>Directo y escueto. Durante la evaluación se limita a <strong>listados numerados de preguntas</strong>; solo desarrolla más si el usuario pregunta algo explícito.</dd>
+    <dt>Qué coordina</dt><dd>Recopila y valida la información del proyecto, obtiene los tres índices (INA, ISA, PIA) mediante herramientas, aplica la compuerta legal y calcula el RIA. Los componentes especialistas nunca hablan con el usuario: solo con el Orquestador.</dd>
+  </dl>
+
+  <h2><span class="num">2.</span>El contexto que recibe al arrancar</h2>
+  <p>Antes de conversar, el Orquestador se "pone al día" con todo lo que ya existe del proyecto. Una herramienta especial (el <strong>preámbulo</strong>) consolida desde la base de datos las evaluaciones previas de INA, ISA y PIA, más metadatos del proyecto, y se lo entrega como conocimiento base. Esto evita volver a preguntar lo que ya se sabe.</p>
+  <p>El preámbulo incluye una señal decisiva: <code>direccion_proyecto_disponible</code> (si ya se tiene la dirección física del proyecto), que condiciona un paso previo al cálculo del RIA. Además, en cada turno el backend le inyecta notas de control: qué modo de PIA usar, si el turno trae un aspecto concreto a trabajar, o si el turno anterior tuvo una interrupción técnica.</p>
+
+  <div class="callout warn">
+    <div class="ct">⚙️ Novedad v2.0 · el motor de competencia se dispara solo</div>
+    <p>A diferencia del preámbulo (que la IA debe invocar), el <a href="06-motor-sea.html">Motor de Reglas SEA</a> se ejecuta de forma <strong>forzada por el backend al ingreso</strong> de la sesión, sin esperar a que el modelo lo pida. Esto permite una redirección temprana si el proyecto es de entrada competencia de otra institución. Además, el sistema mantiene un <strong>almacén de hechos</strong> acumulativo por sesión (los datos ya confirmados del proyecto) que evita repreguntas y alimenta las reglas de competencia.</p>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">📌 Sobre el preámbulo</div>
+    <p>La construcción del preámbulo (<span class="tool">build_project_preamble_tool</span>) es una instrucción de prompt "obligatoria", pero <strong>no está garantizada por código</strong>: depende de que el modelo la invoque. Si no lo hace, el flujo posterior no se rompe (cada índice lee la base de datos por su cuenta), aunque el agente arrancaría sin el conocimiento base consolidado.</p>
+  </div>
+
+  <h2><span class="num">3.</span>Las herramientas (tools) disponibles</h2>
+  <p>El Orquestador dispone de un conjunto acotado de herramientas. Cada una es una capacidad concreta: consultar, calcular, verificar o gestionar la sesión. Estas son <strong>todas</strong> las que la IA puede invocar, agrupadas por función.</p>
+
+  <h4>Contexto inicial</h4>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Herramienta</th><th>Qué hace</th><th>Cuándo se usa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tool">get_codigo_formulario_tool</span></td><td>Recupera el Código de Formulario del proyecto desde la sesión.</td><td><strong>Primera acción absoluta</strong>, antes incluso de saludar, si no se tiene el código.</td></tr>
+        <tr><td><span class="tool">build_project_preamble_tool</span></td><td>Construye el preámbulo: consolida todo lo previo del proyecto.</td><td>Apenas se tiene el código, antes de interactuar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Índices (consulta y cálculo)</h4>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Herramienta</th><th>Qué hace</th><th>Cuándo se usa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tool">get_isa_tool</span></td><td>Recupera el ISA: de base de datos, o forzando consulta a la API externa.</td><td>Para obtener el valor ISA sembrado.</td></tr>
+        <tr><td><span class="tool">calculate_ina_tool</span></td><td>Calcula el índice INA.</td><td>Con información suficiente; se re-ejecuta si el usuario aclara dudas del INA.</td></tr>
+        <tr><td><span class="tool">calculate_pia_tool</span></td><td>Calcula el PIA <strong>global</strong> (todos los aspectos). Costosa y lenta.</td><td>Solo en hitos: primer cálculo de la sesión o recálculo total pedido explícitamente.</td></tr>
+        <tr><td><span class="tool">calculate_pia_pending_tool</span></td><td>Actualiza <strong>solo los aspectos pendientes</strong>, sin recalcular los resueltos.</td><td>Camino por defecto cuando el usuario aporta información nueva.</td></tr>
+        <tr><td><span class="tool">get_pia_aspect_by_id_tool</span></td><td>Lee un aspecto PIA concreto (rápido, solo lectura).</td><td>Cuando el turno trae un aspecto específico a trabajar.</td></tr>
+        <tr><td><span class="tool">get_pending_pia_aspect_tool</span></td><td>Devuelve el siguiente aspecto pendiente a resolver.</td><td>Para elegir qué preguntar, de forma determinista (no al azar).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Compuerta legal, consulta normativa, cálculo final y dirección</h4>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Herramienta</th><th>Qué hace</th><th>Cuándo se usa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tool">verificar_competencia_dot_tool</span></td><td>Invoca el <a href="06-motor-sea.html">Motor de Reglas SEA</a>: clasifica el trámite en uno de cuatro caminos y decide de qué autoridad es competencia. (Nombre heredado de la v1.0.)</td><td><strong>Obligatoria</strong> cuando los tres índices están completos, antes del RIA.</td></tr>
+        <tr><td><span class="tool">consultar_ley</span> <span class="badge b-brand" style="background:var(--brand-soft);color:var(--brand)">v2.0</span></td><td>Recupera extractos de cualquier ley del <a href="08-corpus-legal.html">corpus legal</a>, por número de artículo o por consulta temática. No decide competencia ni calcula índices.</td><td>Como apoyo, cuando el usuario o el razonamiento del agente necesita el texto de una norma.</td></tr>
+        <tr><td><span class="tool">guardar_direccion_proyecto_tool</span></td><td>Guarda la dirección física del proyecto.</td><td>Justo antes del RIA, si la dirección aún no estaba disponible.</td></tr>
+        <tr><td><span class="tool">calculate_ria_tool</span></td><td>Calcula el RIA final, la categoría y su explicación. Tiene una "regla dura" que impide calcular sin veredicto legal favorable.</td><td>Solo tras veredicto <code>marn</code> y con los tres índices completos.</td></tr>
+        <tr><td><span class="tool">finalize_ria_pending_tool</span></td><td>Completa una evaluación RIA previa cuyo resumen quedó pendiente. <strong>No recalcula.</strong></td><td>Solo si el usuario pide completar una evaluación anterior incompleta.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Gestión de sesión</h4>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Herramienta</th><th>Qué hace</th><th>Cuándo se usa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tool">suggest_session_closure_tool</span></td><td>Registra una sugerencia de cierre (no cierra).</td><td>Ante señales sutiles de despedida.</td></tr>
+        <tr><td><span class="tool">finalize_session_tool</span></td><td>Cierra la sesión y ejecuta el pipeline de cierre (análisis y limpieza).</td><td>Cuando el usuario claramente termina y el informe ya se entregó.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">🧰 Sobre el inventario</div>
+    <p>Existen algunas funciones en el código (por ejemplo, iniciar el cálculo ISA con coordenadas, o listar documentos esperados) que <strong>no están habilitadas</strong> para el Orquestador en el flujo actual: no forman parte de su caja de herramientas conversacional.</p>
+  </div>
+
+  <h2><span class="num">4.</span>El orden en que invoca las herramientas</h2>
+  <p>La instrucción del Orquestador impone una secuencia. Este es el "camino feliz", cuando toda la información está disponible:</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode orq tool"><div class="ftitle">1 · get_codigo_formulario_tool</div><div class="fsub">Antes de saludar. Sin código, no arranca nada.</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq tool"><div class="ftitle">2 · build_project_preamble_tool</div><div class="fsub">Carga todo lo previo del proyecto</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq"><div class="ftitle">3 · Recopila datos faltantes</div><div class="fsub">Listados numerados de preguntas hasta tener lo necesario</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide orq tool"><div class="ftitle">4 · get_isa_tool + calculate_ina_tool + calculate_pia_tool</div><div class="fsub">Pueden invocarse en paralelo si hay información suficiente</div></div>
+      <div class="farrow lbl" data-label="resolver pendientes de PIA y dudas de INA (ver árbol de decisión)"></div>
+      <div class="fnode orq tool" style="border-color:var(--stop)"><div class="ftitle">5 · verificar_competencia_dot_tool</div><div class="fsub">Motor de Reglas SEA · OBLIGATORIA antes del RIA</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq tool"><div class="ftitle">6 · guardar_direccion_proyecto_tool</div><div class="fsub">Solo si la dirección no estaba disponible</div></div>
+      <div class="farrow"></div>
+      <div class="fnode ria tool"><div class="ftitle">7 · calculate_ria_tool</div><div class="fsub">Con veredicto MARN y los tres índices completos</div></div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">8 · Informe Ejecutivo + cierre</div></div>
+    </div>
+    <div class="cap">Diagrama 7 · Secuencia de invocación de herramientas en el camino feliz.</div>
+  </div>
+
+  <div class="callout warn">
+    <div class="ct">🔀 Regla de etapas del proyecto</div>
+    <p>Antes de cerrar hacia el RIA, el Orquestador debe confirmar que la descripción cubre el <strong>funcionamiento/operación</strong> y la <strong>etapa de cierre/abandono</strong> del proyecto. Si alguna falta, formula preguntas y espera respuesta antes de continuar.</p>
+  </div>
+
+  <h2><span class="num">5.</span>El árbol de decisión (el corazón del comportamiento)</h2>
+  <p>En cada turno, después de actualizar los resultados, el Orquestador evalúa cuatro CASOS <strong>en orden estricto de prioridad</strong> y responde con <strong>solo el primero que aplique</strong>. No mezcla casos ni formula preguntas de más de uno por turno.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode start"><div class="ftitle">Nuevo turno del usuario</div></div>
+      <div class="farrow"></div>
+
+      <div class="fdecision" style="border-color:var(--pia); background:var(--pia-soft)"><div class="q" style="color:var(--pia)">CASO 1</div>¿Estaba trabajando un aspecto PIA y la respuesta del usuario <strong>no</strong> lo resolvió (sigue en 0)?</div>
+      <div class="fbranch">
+        <div class="flow-col"><div class="farrow yes" data-label="sí" style="height:30px"></div>
+          <div class="fnode pia"><div class="ftitle">Explica qué faltó + UNA contra-pregunta específica</div></div></div>
+        <div class="flow-col"><div class="farrow no" data-label="no" style="height:30px"></div>
+
+          <div class="fdecision" style="border-color:var(--pia); background:var(--pia-soft)"><div class="q" style="color:var(--pia)">CASO 2</div>¿El PIA tiene algún aspecto pendiente (valor 0)?</div>
+          <div class="fbranch">
+            <div class="flow-col"><div class="farrow yes" data-label="sí" style="height:30px"></div>
+              <div class="fnode pia"><div class="ftitle">Elige un aspecto pendiente y formula UNA pregunta</div><div class="fsub">Traducida a lenguaje del proyecto (sin jerga)</div></div></div>
+            <div class="flow-col"><div class="farrow no" data-label="no" style="height:30px"></div>
+
+              <div class="fdecision" style="border-color:var(--ina); background:var(--ina-soft)"><div class="q" style="color:var(--ina)">CASO 3</div>¿El PIA está completo pero el INA dejó dudas por aclarar?</div>
+              <div class="fbranch">
+                <div class="flow-col"><div class="farrow yes" data-label="sí" style="height:30px"></div>
+                  <div class="fnode ina"><div class="ftitle">Presenta las dudas del INA como listado</div><div class="fsub">Al responder, recalcula el INA</div></div></div>
+                <div class="flow-col"><div class="farrow no" data-label="no" style="height:30px"></div>
+
+                  <div class="fdecision" style="border-color:var(--ria); background:var(--ria-soft)"><div class="q" style="color:var(--ria)">CASO 4</div>¿Los tres índices están completos (todos ≥ 1)?</div>
+                  <div class="flow-col">
+                    <div class="farrow yes" data-label="sí" style="height:30px"></div>
+                    <div class="fnode ria"><div class="ftitle">Va a la compuerta legal y al cálculo del RIA</div><div class="fsub">Ver diagrama del CASO 4, abajo</div></div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 8 · Árbol de decisión por prioridad. Se responde con el primer CASO que aplique.</div>
+  </div>
+
+  <h3>CASO 4 en detalle: compuerta legal → RIA → informe</h3>
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode ria"><div class="ftitle">Tres índices completos</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq tool" style="border-color:var(--stop)"><div class="ftitle">verificar_competencia_dot_tool</div><div class="fsub">Motor de Reglas SEA · 4 caminos</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision" style="border-color:var(--stop); background:var(--stop-soft)"><div class="q" style="color:var(--stop)">Camino / veredicto</div>¿De qué autoridad es competencia el trámite?</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow" data-label="1A / 1B → dot" style="height:34px"></div>
+          <div class="fnode endstop"><div class="ftitle">BLOQUEO</div><div class="fsub">Redirección a la autoridad competente (DOT, ANDRES, MIVI…) o impedimento dimensional. Entrega mensaje + reporte técnico. No calcula RIA.</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow lbl" data-label="revisión manual" style="height:34px"></div>
+          <div class="fnode orq"><div class="ftitle">Pregunta aclaratoria</div><div class="fsub">Recoge respuesta y vuelve a verificar</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow yes" data-label="2 / 3 → marn" style="height:34px"></div>
+          <div class="fnode ria"><div class="ftitle">¿Hay dirección del proyecto?</div><div class="fsub">Si no, la pide y la guarda</div></div>
+          <div class="farrow"></div>
+          <div class="fnode ria tool"><div class="ftitle">calculate_ria_tool</div></div>
+          <div class="farrow"></div>
+          <div class="fnode endok"><div class="ftitle">Informe Ejecutivo RIA</div><div class="fsub">Con alertas de co-competencia si fue Camino 3 · cierre "La evaluación concluyó."</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 9 · El CASO 4: Motor de Reglas SEA (4 caminos), cálculo del RIA y entrega del informe.</div>
+  </div>
+
+  <h2><span class="num">6.</span>Qué acciones puede tomar la IA</h2>
+  <div class="cards">
+    <div class="card c-orq"><h3>Preguntar</h3><p>Presentar listados numerados de preguntas concretas para completar la información faltante.</p></div>
+    <div class="card c-orq"><h3>Invocar herramientas</h3><p>Consultar contexto, calcular índices, verificar competencia, calcular el RIA, gestionar la sesión.</p></div>
+    <div class="card c-orq"><h3>Traducir</h3><p>Convertir la jerga técnica interna en preguntas sobre hechos reales del proyecto.</p></div>
+    <div class="card c-orq"><h3>Recalcular</h3><p>Re-ejecutar el INA o actualizar los pendientes del PIA cuando llega información nueva.</p></div>
+    <div class="card c-orq"><h3>Bloquear o redirigir</h3><p>Entregar el bloqueo legal y redirigir a la autoridad competente cuando el trámite no es del MARN.</p></div>
+    <div class="card c-orq"><h3>Cerrar</h3><p>Emitir el Informe Ejecutivo y gestionar el cierre ordenado de la sesión.</p></div>
+  </div>
+
+  <h2><span class="num">7.</span>Redes de seguridad del backend</h2>
+  <p>La IA es potente pero no infalible. Por eso el sistema envuelve al Orquestador con <strong>reglas deterministas</strong> que garantizan el comportamiento correcto aunque el modelo se desvíe de sus instrucciones:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Salvaguarda</th><th>Qué garantiza</th></tr></thead>
+      <tbody>
+        <tr><td>Reintento por respuesta vacía</td><td>Si el modelo devuelve una respuesta vacía, se reintenta; si persiste, se ofrece reintentar al usuario en lugar de dejarlo sin respuesta.</td></tr>
+        <tr><td>Saneamiento de la salida</td><td>Elimina cualquier volcado técnico crudo (datos internos, formato JSON) antes de mostrar el mensaje al usuario.</td></tr>
+        <tr><td>Alerta de convergencia PIA</td><td>Si los pendientes no avanzan tras varias rondas, muestra un mensaje de soporte sin bloquear al usuario.</td></tr>
+        <tr><td>Motor de competencia forzado al ingreso</td><td>Dispara el <a href="06-motor-sea.html">Motor de Reglas SEA</a> al inicio de la sesión sin depender de que la IA lo invoque, permitiendo bloqueos tempranos por materia.</td></tr>
+        <tr><td>Refuerzo del bloqueo de competencia</td><td>Si el veredicto es <code>dot</code> (caminos 1A/1B), garantiza que se entregue el mensaje de redirección + reporte técnico completo, aunque el modelo intente saltárselo.</td></tr>
+        <tr><td>Anexado de alertas de co-competencia</td><td>Si el trámite avanzó por el Camino 3, anexa una sola vez las alertas interinstitucionales al informe final.</td></tr>
+        <tr><td>Candado duro del RIA</td><td>El cálculo del RIA se niega a ejecutar salvo veredicto vigente <code>marn</code>.</td></tr>
+        <tr><td>Detección del informe final y cierre automático</td><td>Reconoce cuándo se entregó el informe y puede cerrar la sesión si el usuario se despide.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="color:var(--muted); font-size:.9rem">La instrucción completa del Orquestador (con todas sus reglas de estilo, orden y los cuatro CASOS) está transcrita en la sección <a href="09-prompts.html#prompt-orquestador">Prompts</a>.</p>
+
+  <div class="pager">
+    <a href="04-pia.html"><div class="dir">← Anterior</div><div class="ti">PIA</div></a>
+    <a class="next" href="06-motor-sea.html"><div class="dir">Siguiente →</div><div class="ti">Motor de Reglas SEA</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

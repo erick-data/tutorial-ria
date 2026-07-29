@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corpus legal y RAG multi-ley · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › Corpus legal y RAG multi-ley</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--brand)">La base de conocimiento · novedad v2.0</div>
+    <h1>Corpus legal y RAG multi-ley</h1>
+    <p class="sub">El sistema no memoriza las leyes: las <em>consulta</em>. Un almacén de textos legales vectorizados permite recuperar, bajo demanda y por significado, los artículos exactos que aplican a cada decisión — para que la IA lea la ley en vez de inventarla. Esta base de conocimiento alimenta al PIA, al Motor de Reglas SEA y una herramienta de consulta conversacional.</p>
+  </header>
+
+  <div class="callout key">
+    <div class="ct">🔑 Qué es RAG (y por qué)</div>
+    <p><strong>RAG</strong> (<em>Retrieval-Augmented Generation</em>, generación aumentada por recuperación) es una técnica en la que, antes de pedirle algo a la IA, se le <strong>recuperan y adjuntan</strong> los fragmentos de texto relevantes. Así el modelo razona sobre el texto exacto de la ley, sin depender de lo que "recuerde" de su entrenamiento. En este sistema, eso evita que la IA cite artículos inexistentes y mantiene los prompts ligeros: solo entra lo que hace falta.</p>
+  </div>
+
+  <h2><span class="num">1.</span>Cómo se guarda una ley: la vectorización</h2>
+  <p>Cada documento legal se procesa una vez y se guarda de forma que después pueda buscarse por <strong>significado</strong>, no solo por palabras exactas. El proceso de ingesta (carga inicial) tiene estos pasos:</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode start"><div class="ftitle">Documento legal (PDF)</div><div class="fsub">Ley, reglamento, acuerdo, instructivo o manual</div></div>
+      <div class="farrow"></div>
+      <div class="fnode tool" style="border-color:var(--brand); border-left-width:5px"><div class="ftitle">1 · Extracción y limpieza de texto</div><div class="fsub">Se lee el PDF y se limpian números de página, guiones de corte y espacios sobrantes</div></div>
+      <div class="farrow"></div>
+      <div class="fnode tool" style="border-color:var(--brand); border-left-width:5px"><div class="ftitle">2 · Fragmentación (chunking)</div><div class="fsub">Las leyes se cortan <strong>por artículo</strong> (Art. 1, Art. 2, …); los manuales, por tamaño. Cada fragmento conserva su referencia (sección/artículo)</div></div>
+      <div class="farrow"></div>
+      <div class="fnode tool" style="border-color:var(--brand); border-left-width:5px"><div class="ftitle">3 · Embeddings (vectorización)</div><div class="fsub">Cada fragmento se convierte en un vector numérico de 768 dimensiones que representa su significado</div></div>
+      <div class="farrow"></div>
+      <div class="fnode endok" style="background:var(--brand)"><div class="ftitle">4 · Almacenamiento en pgvector</div><div class="fsub">Documento + fragmentos + vectores quedan en base de datos, indexados para búsqueda rápida por similitud</div></div>
+    </div>
+    <div class="cap">Diagrama 16 · Ingesta de un documento legal al corpus normativo.</div>
+  </div>
+
+  <dl class="meta">
+    <dt>Modelo de embeddings</dt><dd><strong>text-multilingual-embedding-002</strong> (Vertex AI de Google), que produce vectores de <strong>768 dimensiones</strong>. Es multilingüe, apropiado para textos en español.</dd>
+    <dt>Motor de búsqueda</dt><dd><strong>pgvector</strong> sobre PostgreSQL, con un índice HNSW y distancia coseno para encontrar los fragmentos más parecidos a una consulta.</dd>
+    <dt>Idempotencia</dt><dd>Cada documento se identifica por una huella (sha256) de su contenido: reingerir el mismo PDF no lo duplica.</dd>
+  </dl>
+
+  <div class="callout info">
+    <div class="ct">🤖 Un matiz sobre "la IA"</div>
+    <p>La generación de embeddings y la búsqueda por similitud usan un modelo de Vertex AI, pero <strong>no es el mismo Gemini generativo</strong> que redacta respuestas. Es un modelo especializado en representar significado como vectores. La recuperación en sí (comparar vectores, traer fragmentos) es <strong>determinista</strong>.</p>
+  </div>
+
+  <h2><span class="num">2.</span>Las dos formas de recuperar un artículo</h2>
+  <p>Cuando el sistema necesita el texto legal, lo recupera de una de dos maneras, según cuánta precisión tenga la referencia:</p>
+
+  <div class="cards">
+    <div class="card c-brand">
+      <div class="role">Ruta A</div><h3>Cita directa</h3>
+      <p>Cuando ya se sabe <strong>qué ley y qué artículo</strong> (por ejemplo, una regla del Motor SEA que declara "Ley DOT, Art. 33"), se hace una búsqueda exacta por esa referencia. Es preciso y no gasta embeddings.</p>
+    </div>
+    <div class="card c-brand">
+      <div class="role">Ruta B</div><h3>Similitud semántica</h3>
+      <p>Cuando solo se tiene una <strong>pregunta o un tema</strong>, se vectoriza la consulta y se traen los fragmentos más parecidos por significado. Puede acotarse a una ley concreta o buscarse en todo el corpus.</p>
+    </div>
+  </div>
+
+  <div class="callout ok">
+    <div class="ct">🧩 Degradación elegante</div>
+    <p>Si una cita directa no encuentra el artículo (por ejemplo, una numeración que no coincide), el sistema <strong>cae automáticamente</strong> a la búsqueda por similitud en esa misma ley, en lugar de quedarse sin contexto. Y si una ley falta del corpus, el resto de las citas se resuelven igual: la ausencia de una fuente no rompe la evaluación.</p>
+  </div>
+
+  <h2><span class="num">3.</span>Quién consume el corpus</h2>
+  <p>La base de conocimiento no es un módulo aislado: tres componentes del sistema la usan.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Consumidor</th><th>Para qué</th><th>Cómo recupera</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-pia">PIA</span></td><td>Inyecta los artículos citados por las reglas de observaciones/excepciones del catálogo CEIA, para que la IA decida si una excepción legal aplica leyendo la ley.</td><td>Cita directa (sin embeddings)</td></tr>
+        <tr><td>Motor de Reglas SEA</td><td>Trae los artículos aplicables de cada regla de competencia para fundamentar el veredicto y el reporte técnico.</td><td>Cita directa, agrupada por ley</td></tr>
+        <tr><td><span class="badge b-orq">Orquestador</span></td><td>Responde consultas legales del usuario mediante la herramienta <span class="tool">consultar_ley</span>.</td><td>Cita directa o similitud</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>La herramienta <span class="tool">consultar_ley</span></h3>
+  <p>Es una novedad de la v2.0 en la caja de herramientas del <a href="05-orquestador.html">Orquestador</a>. Permite a la IA recuperar extractos de <strong>cualquier ley del corpus</strong> durante la conversación: si el usuario o el propio razonamiento del agente necesita el texto de un artículo, la herramienta lo trae (por número de artículo, o por consulta temática). <strong>No decide competencia ni calcula índices</strong>: solo aporta el texto legal como insumo.</p>
+
+  <h2><span class="num">4.</span>Qué leyes están cargadas</h2>
+  <p>El corpus reúne alrededor de una veintena de cuerpos normativos. Algunos están indexados con nombre canónico (permiten <strong>cita directa</strong> por artículo); el resto es consultable por <strong>similitud</strong>.</p>
+
+  <div class="panel tint-ria">
+    <h4 style="margin-top:0; color:var(--brand)">Con cita directa por artículo</h4>
+    <p style="margin-top:0">Ley DOT · Reglamento de la Ley DOT · Ley ANDRES · Acuerdo 152 del MAG (lotificaciones agrícolas) · Ley de Medio Ambiente (LMA) · Ley General de Recursos Hídricos.</p>
+    <h4 style="color:var(--brand)">Consultables por similitud</h4>
+    <p style="margin-bottom:0; color:var(--muted)">Manual CIIU 2006 · Decreto de tierras agrícolas de Zapotitán · Ley de la Autoridad de Economía Azul · Ley de Minería · Ley de Energía Geotérmica · Ley de Energía Nuclear · Ley de Gas Natural · Ley General de Minería Metálica · Ley de Hidrocarburos · Ley de Prevención de Riesgos Laborales · Ley del Programa de Energía Nuclear · Ley de Riego y Avenamiento · Infraestructura pasiva de telecomunicaciones (MIVI).</p>
+  </div>
+
+  <h2><span class="num">5.</span>El bloque de catálogo CEIA: cómo se cura el prompt del PIA</h2>
+  <p>El corpus legal resolvió, de paso, un problema serio del <a href="04-pia.html">PIA</a>. El catálogo de criterios era tan grande (unos 139.000 caracteres) que inyectarlo crudo en cada prompt provocaba <strong>respuestas vacías del modelo</strong> por sobrecarga. La solución fue reemplazar ese volcado por un <strong>bloque compacto construido desde la base de datos</strong>, que incluye solo:</p>
+  <ul>
+    <li>Los criterios de cada aspecto ambiental (con sus escenarios y valores).</li>
+    <li>Las reglas de observaciones y excepciones, con una <strong>etiqueta de cita</strong> que enlaza a la ley y el artículo pertinentes.</li>
+    <li>Una sección de <strong>leyes relevantes</strong> con el texto exacto de esos artículos (recuperados por cita directa del corpus), deduplicados y agrupados por ley y artículo.</li>
+  </ul>
+  <p>Así, la IA lee solo lo necesario y con el respaldo legal a la vista, sin saturar el prompt.</p>
+
+  <h2><span class="num">6.</span>Qué es determinista y qué usa IA (resumen)</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Paso</th><th>Quién</th></tr></thead>
+      <tbody>
+        <tr><td>Extraer, limpiar y fragmentar los documentos</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Generar embeddings de fragmentos y consultas</td><td><span class="badge b-ina">Vertex AI (no Gemini generativo)</span></td></tr>
+        <tr><td>Buscar por similitud, citar artículos y deduplicar extractos</td><td><span class="badge b-auto">Determinista</span></td></tr>
+        <tr><td>Interpretar el texto legal recuperado y decidir si una excepción aplica</td><td><span class="badge b-orq">IA (Gemini)</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout info">
+    <div class="ct">🗄️ Persistencia</div>
+    <p>Los documentos viven en <code>documentos_normativos</code> (metadatos, tipo, nombre canónico, huella) y sus fragmentos en <code>documentos_chunks</code> (texto, referencia y el vector de 768 dimensiones con índice HNSW). La ingesta se ejecuta por línea de comandos o por un endpoint de catálogo.</p>
+  </div>
+
+  <div class="pager">
+    <a href="07-ria-cierre.html"><div class="dir">← Anterior</div><div class="ti">Cálculo del RIA e Informe</div></a>
+    <a class="next" href="09-prompts.html"><div class="dir">Siguiente →</div><div class="ti">Prompts (apéndice)</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

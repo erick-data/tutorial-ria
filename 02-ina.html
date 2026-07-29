@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INA · Naturaleza y Envergadura · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › INA</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--ina)">Índice 1 · endpoint ina/query</div>
+    <h1>INA — Naturaleza y Envergadura de la Actividad</h1>
+    <p class="sub">Mide qué tan impactante es intrínsecamente la actividad económica del proyecto, según su naturaleza, magnitud y escala — con independencia de dónde se ubique. Es el primer índice que se siembra en el pipeline.</p>
+  </header>
+
+  <h2><span class="num">1.</span>Qué mide y en qué escala</h2>
+  <p>El INA responde a una pregunta: <strong>¿qué tan grande e intrínsecamente impactante es la actividad que el proyecto va a realizar?</strong> No le importa la sensibilidad del entorno (eso lo mide el ISA) ni el detalle de los impactos (eso lo mide el PIA); le importa la <em>envergadura de la actividad</em>.</p>
+  <div class="tiles">
+    <div class="tile"><div class="v" style="color:var(--ina)">1 – 4</div><div class="l">Escala del valor INA</div></div>
+    <div class="tile"><div class="v" style="color:var(--ina)">CIIU</div><div class="l">Clasificación de actividades usada</div></div>
+    <div class="tile"><div class="v" style="color:var(--ina)">MAX</div><div class="l">Regla si hay varias actividades</div></div>
+  </div>
+  <p>El principio metodológico está escrito literalmente en las instrucciones del modelo: <em>"El INA no depende de ubicación geográfica ni sensibilidad ambiental, sino de la naturaleza, magnitud y escala de la actividad económica."</em></p>
+
+  <h2><span class="num">2.</span>Cómo se clasifica la actividad: la CIIU</h2>
+  <p>Para asignar el valor, el sistema apoya la actividad del proyecto en la <strong>CIIU (Clasificación Industrial Internacional Uniforme, Rev.4)</strong>: un catálogo estándar que organiza todas las actividades económicas en una jerarquía de Sección (letra A–U) → División → Grupo → Clase. Cada clase CIIU tiene, en el catálogo interno del MARN, una tabla que asocia el valor INA (1–4) a una condición o escala (por ejemplo, superficies en m² o volúmenes en m³).</p>
+  <div class="callout info">
+    <div class="ct">🔎 Ejemplo</div>
+    <p>Una actividad de "preparación de terreno" puede valer INA 3 si el área a intervenir es de hasta 50.000 m², y saltar a 4 si supera esa superficie. La <strong>magnitud diferencia el valor</strong>. Por eso el sistema insiste tanto en obtener cifras concretas.</p>
+  </div>
+
+  <h2><span class="num">3.</span>El flujo del endpoint <span class="tool">ina/query</span></h2>
+  <p>El cálculo del INA es una <strong>llamada directa al modelo Gemini</strong> (no un agente conversacional), envuelta en lógica determinista de caché, recuperación de contexto y persistencia.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode start"><div class="ftitle">Entrada del proyecto</div><div class="fsub">Código, nombre, descripción detallada, entidad, representante, monto</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision"><div class="q">Decisión · caché</div>¿<code>force</code> = falso y ya existe una evaluación previa en base de datos?</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow yes" data-label="sí" style="height:34px"></div>
+          <div class="fnode ina"><div class="ftitle">Devuelve el resultado guardado</div><div class="fsub">Sin volver a llamar a la IA (ahorro de tiempo y costo)</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow no" data-label="no" style="height:34px"></div>
+          <div class="fnode ina tool"><div class="ftitle">Recupera contexto CIIU (determinista)</div><div class="fsub">Búsqueda de texto en el catálogo CIIU sobre la descripción → códigos candidatos + clases "hermanas"</div></div>
+          <div class="farrow"></div>
+          <div class="fnode orq"><div class="ftitle">Llama a Gemini con la instrucción INA</div><div class="fsub">El modelo identifica actividades, las asocia a CIIU, verifica magnitudes y asigna valor por actividad</div></div>
+          <div class="farrow"></div>
+          <div class="fnode ina"><div class="ftitle">Toma el valor MÁXIMO entre actividades</div><div class="fsub">valor_ina = MAX(actividad 1, actividad 2, …)</div></div>
+          <div class="farrow"></div>
+          <div class="fnode ina tool"><div class="ftitle">Persiste en <code>ina_evaluations</code></div><div class="fsub">Valor, explicación, supuestos, respuesta cruda</div></div>
+        </div>
+      </div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">Resultado INA</div><div class="fsub">valor 1-4 · explicación · dudas para clarificar · actividades y códigos CIIU identificados</div></div>
+    </div>
+    <div class="cap">Diagrama 2 · Flujo del cálculo INA. La búsqueda CIIU y la persistencia son deterministas; la asignación del valor la hace la IA.</div>
+  </div>
+
+  <h2><span class="num">4.</span>Qué decide la IA y qué es determinista</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Paso</th><th>Tipo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td>Caché en base de datos</td><td><span class="badge b-auto">Determinista</span></td><td>Si ya hay evaluación para el mismo proyecto/sesión, se reutiliza salvo que se fuerce el recálculo.</td></tr>
+        <tr><td>Recuperación CIIU (RAG)</td><td><span class="badge b-auto">Determinista</span></td><td>Un motor de búsqueda de texto selecciona los códigos CIIU más parecidos a la descripción y se los ofrece al modelo, para que <strong>no invente códigos</strong>.</td></tr>
+        <tr><td>Identificar actividades y asignar valor</td><td><span class="badge b-orq">IA (Gemini)</span></td><td>El modelo lee la descripción, reconoce las actividades, verifica si las magnitudes encajan en las condiciones del catálogo y asigna el valor 1–4 de cada una.</td></tr>
+        <tr><td>Regla del máximo</td><td><span class="badge b-orq">IA</span></td><td>Si el proyecto tiene varias actividades o fases, se conserva el valor más alto (criterio oficial del MARN).</td></tr>
+        <tr><td>Guardado del resultado</td><td><span class="badge b-auto">Determinista</span></td><td>Se persiste el valor y toda la evidencia en <code>ina_evaluations</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">5.</span>Cuando falta información: las "dudas para clarificar"</h2>
+  <p>Una regla central de la instrucción del INA es <strong>no inventar</strong>. Si para asignar el valor correcto falta un dato crítico (una superficie exacta, el tipo de obra, la escala de producción), el modelo no asume: registra una <strong>pregunta concreta</strong> en un campo llamado <code>dudas_para_clarificar</code> y asigna, mientras tanto, el valor más conservador que sí esté justificado.</p>
+  <p>Esas dudas son el puente con la conversación: el <a href="05-orquestador.html">Agente Orquestador</a> las recoge y las traslada al usuario como preguntas (esto corresponde al "CASO 3" de su árbol de decisión). Una regla de estilo importante: las preguntas se formulan sobre <strong>hechos del proyecto</strong> ("¿cuál es la superficie a intervenir en m²?"), nunca pidiéndole al usuario que clasifique su propia actividad en la taxonomía CIIU.</p>
+
+  <div class="callout warn">
+    <div class="ct">🧩 Cobertura de fases</div>
+    <p>La instrucción pide verificar explícitamente que la descripción cubra el <strong>funcionamiento/operación</strong> del proyecto y su eventual <strong>cierre/abandono</strong>. Si falta alguna de esas etapas, se generan dudas para clarificar. Esto asegura que el INA contemple todo el ciclo de vida, no solo la construcción.</p>
+  </div>
+
+  <h2><span class="num">6.</span>Entradas y salidas</h2>
+  <h4>Lo que el proyecto debe aportar</h4>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Dato</th><th>Para qué sirve</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Descripción detallada</strong></td><td>Es la pieza central: de aquí se extraen actividades, fases, magnitudes (m², m³, toneladas), maquinaria e insumos.</td></tr>
+        <tr><td>Nombre del proyecto, entidad, representante, monto de inversión</td><td>Datos administrativos y de contexto. No influyen por sí solos en el valor INA (que depende de la actividad), pero acompañan el expediente.</td></tr>
+        <tr><td>Código de Formulario</td><td>Identificador único que enlaza esta evaluación con las de los otros índices.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h4>Lo que devuelve</h4>
+  <dl class="meta">
+    <dt>valor_ina</dt><dd>El valor 1–4 (o vacío si no se pudo determinar).</dd>
+    <dt>explicacion_ina</dt><dd>Justificación narrativa de por qué se asignó ese valor.</dd>
+    <dt>dudas_para_clarificar</dt><dd>Preguntas concretas para el usuario cuando falta información crítica.</dd>
+    <dt>actividades / códigos CIIU</dt><dd>Las actividades identificadas y los códigos CIIU (confirmados y candidatos). <strong>Este dato es clave</strong>: el PIA lo reutiliza después para conectar el proyecto con sus reglas por actividad.</dd>
+  </dl>
+
+  <div class="callout info">
+    <div class="ct">🔗 Conexión con el PIA</div>
+    <p>Los códigos CIIU que identifica el INA no se quedan en el INA: son la puerta de entrada del refinamiento por "acciones de verificación" del PIA. Por eso la instrucción exige que siempre haya <em>al menos una hipótesis</em> de clase CIIU, aunque existan dudas. Lo verá en la sección <a href="04-pia.html">PIA</a>.</p>
+  </div>
+
+  <p style="color:var(--muted); font-size:.9rem">La instrucción completa que recibe el modelo para el INA está transcrita en la sección <a href="09-prompts.html#prompt-ina">Prompts</a>.</p>
+
+  <div class="pager">
+    <a href="01-vision-general.html"><div class="dir">← Anterior</div><div class="ti">Visión general</div></a>
+    <a class="next" href="03-isa.html"><div class="dir">Siguiente →</div><div class="ti">ISA · Significancia Ambiental</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>
