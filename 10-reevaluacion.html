@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reevaluación técnica · Tutorial RIA</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/app.js"></script>
+</head>
+<body>
+
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="index.html"><span class="logo">RIA</span><span>Environmental Risk AI<small>Tutorial técnico · MARN</small></span></a>
+  <div class="navlinks">
+    <a href="index.html">Inicio</a>
+    <a href="01-vision-general.html">Visión general</a>
+    <a href="02-ina.html">INA</a>
+    <a href="03-isa.html">ISA</a>
+    <a href="04-pia.html">PIA</a>
+    <a href="05-orquestador.html">Orquestador</a>
+    <a href="06-motor-sea.html">Motor SEA</a>
+    <a href="07-ria-cierre.html">RIA y cierre</a>
+    <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="10-reevaluacion.html">Reevaluación</a>
+    <a href="09-prompts.html">Prompts</a>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+  <div class="crumb"><a href="index.html">Inicio</a> › Reevaluación técnica</div>
+  <header class="hero">
+    <div class="kicker" style="color:var(--ria)">El circuito de corrección · novedad v2.0</div>
+    <h1>Reevaluación técnica del dictamen</h1>
+    <p class="sub">Qué ocurre <strong>después</strong> del <a href="07-ria-cierre.html">Informe Ejecutivo</a>. Un técnico del MARN revisa un trámite ya resuelto, corrige los valores de INA, ISA o PIA que considera equivocados, y el sistema <strong>rehace el dictamen completo</strong>: reescribe la fundamentación de cada índice, recalcula el RIA, reasigna la categoría ambiental y emite un informe nuevo. Después, sin apuro y por separado, un segundo proceso juzga si el técnico tenía razón, para que el sistema aprenda de la corrección.</p>
+  </header>
+
+  <div class="callout key">
+    <div class="ct">🔑 Idea central</div>
+    <p>Son <strong>dos momentos deliberadamente separados</strong>. En el primero, <em>el insumo humano manda</em>: el sistema aplica la corrección sin discutirla y emite el dictamen nuevo. En el segundo, ya emitido el dictamen y sin presión de tiempo, el sistema <em>contrasta</em> cada cambio contra el catálogo y la evidencia, y registra si el criterio humano estaba fundamentado. Juzgar en el mismo momento de aplicar habría hecho que la opinión del sistema pudiera demorar —o tumbar— la respuesta al portal.</p>
+  </div>
+
+  <h2><span class="num">1.</span>Qué problema resuelve</h2>
+  <p>Hasta esta incorporación, un dictamen equivocado no tenía arreglo: la evaluación se producía dentro de una conversación con el ciudadano y, una vez cerrada, corregir un índice implicaba volver a empezar el trámite. La <strong>reevaluación técnica</strong> abre una vía interna que no pasa por la conversación:</p>
+  <ul>
+    <li>El portal interno del MARN muestra al técnico los tres índices del trámite con sus valores y los 44 aspectos ambientales del PIA.</li>
+    <li>El técnico corrige los valores que hagan falta y escribe un <strong>comentario</strong> explicando cada corrección.</li>
+    <li>El sistema aplica esas correcciones, <strong>reescribe todos los textos afectados</strong> y emite un dictamen nuevo que se lee como si fuera el primero.</li>
+  </ul>
+
+  <div class="callout stop">
+    <div class="ct">🕵️ El dictamen no delata la intervención humana</div>
+    <p>Esta es la regla que gobierna toda la redacción. El expediente que queda es un <strong>dictamen técnico íntegro</strong>, no la corrección de un dictamen anterior: está prohibido atribuir la conclusión a una persona ("el técnico determinó"), declarar que hubo una corrección o revisión, o revelar que existió una versión previa ("originalmente se asignó 2"). No es solo una instrucción al modelo: hay una <strong>compuerta de programación</strong> que revisa los textos y los rechaza si la violan (ver <a href="#compuertas">§7</a>). Los datos de la operación —quién, cuándo, qué cambió— viajan al portal en un nodo aparte, <em>fuera</em> del dictamen.</p>
+  </div>
+
+  <h2><span class="num">2.</span>Los tres puntos de entrada</h2>
+  <p>Toda la funcionalidad se expone en tres llamadas de servicio. La primera es el flujo de corrección; las otras dos son el análisis posterior.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Qué hace</th><th>Naturaleza</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>POST /reevaluacion/indices</code></td>
+          <td>Recibe las correcciones del técnico, recalcula el RIA y devuelve el <strong>mismo JSON</strong> que produce la conversación (<code>resultado_ria</code>), más un nodo <code>reevaluacion</code> con el metadato de la operación.</td>
+          <td><span class="badge b-warn">síncrono · 77–135 s</span></td>
+        </tr>
+        <tr>
+          <td><code>POST /reevaluacion/analisis/{feedback_id}</code></td>
+          <td>Contrasta cada cambio de una corrección ya aplicada contra el catálogo y la evidencia, y emite un veredicto por cambio. Con <code>forzar=true</code> reanaliza uno ya analizado.</td>
+          <td><span class="badge b-auto">offline</span></td>
+        </tr>
+        <tr>
+          <td><code>POST /reevaluacion/analisis/pendientes/procesar</code></td>
+          <td>Procesa la cola de correcciones aplicadas cuyo análisis está pendiente (por defecto, hasta 10). Un fallo en una no detiene a las demás.</td>
+          <td><span class="badge b-auto">offline · por lote</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <div class="ct">⏱️ La espera es larga y no hay <em>polling</em></div>
+    <p>La corrección encadena entre <strong>4 y 6 llamadas al modelo</strong> de unos 27 s cada una: interpretar el comentario del INA, redactar la fundamentación de los índices, redactar el resumen ejecutivo y explicar el RIA. Medido: <strong>77–135 s</strong> en la nube y 61–87 s en local. Se aceptó esa latencia tal cual, a cambio de una condición: el <em>timeout</em> del portal y de cualquier intermediario debe estar <strong>por encima de 180 s</strong>, dimensionado por el peor caso y no por el promedio. Cortar la conexión no aborta el trabajo: el servidor lo lleva hasta el final igual.</p>
+  </div>
+
+  <h2><span class="num">3.</span>El circuito completo</h2>
+
+  <div class="flow" aria-label="Circuito de la reevaluación técnica">
+    <div class="flow-col">
+
+      <div class="fnode start"><div class="ftitle">Trámite con dictamen emitido</div><div class="fsub">Ya tiene RIA, categoría e Informe Ejecutivo</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide" style="background:var(--panel-2)"><div class="ftitle">Un técnico del MARN lo revisa en el portal interno</div><div class="fsub">Corrige valores de INA / ISA / aspectos del PIA y comenta cada corrección</div></div>
+      <div class="farrow"></div>
+
+      <div class="fnode wide ria"><div class="ftitle">MOMENTO 1 · Aplicar <span class="badge b-warn">síncrono</span></div><div class="fsub"><code>POST /reevaluacion/indices</code> — el insumo humano se aplica sin discutirlo</div></div>
+      <div class="farrow"></div>
+
+      <div class="pipe" style="width:100%">
+        <div class="stage ep"><div class="n">a</div><div class="t">Validar y congelar</div><div class="d">Se valida el contrato, se lee el dictamen vigente y se guarda el "antes" en un <em>snapshot</em>.</div></div>
+        <div class="stage ep"><div class="n">b</div><div class="t">Fusionar y recalcular</div><div class="d">Se aplican los valores del técnico, se interpretan las actividades del INA y se recalcula el PIA.</div></div>
+        <div class="stage ep"><div class="n">c</div><div class="t">Redactar</div><div class="d">Un agente redactor reescribe la fundamentación y el resumen; las compuertas los revisan.</div></div>
+        <div class="stage ep"><div class="n">d</div><div class="t">Recalcular RIA</div><div class="d">El pipeline normal suma los tres índices sobre las filas nuevas y asigna categoría.</div></div>
+      </div>
+
+      <div class="farrow lbl" data-label="dictamen nuevo devuelto al portal"></div>
+      <div class="fnode endok"><div class="ftitle">Informe Ejecutivo nuevo</div><div class="fsub">Se persiste en <code>ria_evaluations</code> con la marca de reevaluación</div></div>
+
+      <div class="farrow lbl" data-label="después, por separado"></div>
+
+      <div class="fnode wide" style="border-color:var(--brand); border-left-width:5px"><div class="ftitle">MOMENTO 2 · Contrastar <span class="badge b-auto">offline</span></div><div class="fsub"><code>POST /reevaluacion/analisis/…</code> — ¿tenía razón el técnico?</div></div>
+      <div class="farrow"></div>
+      <div class="fnode"><div class="ftitle">Un veredicto por cada cambio</div><div class="fsub"><code>confirma_humano</code> · <code>refuta_humano</code> · <code>indeterminado</code>, con su aclaración, su lección y una regla candidata</div></div>
+      <div class="farrow"></div>
+      <div class="fnode" style="border-color:var(--brand)"><div class="ftitle">Detección de patrones</div><div class="fsub">¿En qué aspectos se equivoca siempre el sistema? ¿En cuáles el criterio humano diverge sin fundamento?</div></div>
+
+    </div>
+    <div class="cap">Diagrama 17 · Los dos momentos de la reevaluación técnica: aplicar primero, juzgar después.</div>
+  </div>
+
+  <h2><span class="num">4.</span>El contrato de modificaciones</h2>
+  <p>La entrada del endpoint es el <strong>código de formulario</strong> del trámite más un objeto con los tres índices. La sesión que produjo el dictamen <em>no</em> hay que enviarla: el sistema la deduce del dictamen vigente de ese trámite (el portal solo conoce el código). Puede enviarse igual para apuntar a una sesión concreta.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Bloque</th><th>Contenido</th></tr></thead>
+      <tbody>
+        <tr><td><code>ina</code> / <code>isa</code></td><td><code>comentario</code> (texto libre del técnico), <code>valor</code> (1–4 o nulo) y <code>modificado</code> (bandera del portal).</td></tr>
+        <tr><td><code>pia</code></td><td><code>comentarioGlobal</code>, <code>modificado</code> y los <strong>10 bloques CEIA</strong>, cada uno con sus aspectos ambientales; cada aspecto lleva su <code>id</code>, su <code>comentario</code> y su <code>valor</code>. En total, <strong>44 aspectos</strong>, que llegan siempre completos.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>El PIA <strong>no trae un valor propio</strong>: ese índice no se recibe, se deriva de los aspectos (ver <a href="#pia">§5.3</a>). Y el emparejamiento con la evaluación existente se hace por el <code>id</code> del aspecto, nunca por su nombre: emparejar por texto es justamente el mecanismo que ya produjo incoherencias en este proyecto.</p>
+
+  <div class="callout info">
+    <div class="ct">🔢 Dos reglas del contrato que no son evidentes</div>
+    <p><strong>Nulo significa "sin cambio", no "cero".</strong> Un aspecto con <code>valor: null</code> conserva el valor que la IA ya había determinado. Traducirlo a 0 pondría el PIA en estado incompleto y bloquearía el cálculo del RIA.</p>
+    <p><strong>El valor 0 se rechaza.</strong> En el resto del sistema el 0 significa "pendiente de aclaración", no una ponderación; aceptarlo aquí mezclaría dos significados en el mismo campo.</p>
+  </div>
+
+  <p>La validación es la frontera del sistema: lo que no cuadre muere ahí y no dos capas más abajo, donde el síntoma sería un RIA silenciosamente mal calculado. Se comprueban la escala 1–4, la cantidad de CEIAs y de aspectos, y que no haya ids repetidos (con ids duplicados, el valor final quedaría a merced del orden de llegada). Los errores <strong>no se reportan de a uno</strong>: se acumulan todos y se devuelven juntos, porque quien corrige el envío del portal necesita la lista completa.</p>
+
+  <div class="callout warn">
+    <div class="ct">🚩 Las banderas <code>modificado</code> no son la fuente de verdad</div>
+    <p>El portal envía una bandera <code>modificado</code> por índice, pero es global —no existe por aspecto— y los 44 aspectos llegan siempre poblados. Así que el único detector fiable de qué cambió es <strong>comparar cada valor recibido contra el que la IA había puesto</strong>. De ese diff sale todo lo demás: qué textos hay que reescribir, qué índices se reportan como modificados y qué cambios entran al análisis posterior. Cuando la bandera y el diff no coinciden, la petición no se rechaza (el insumo humano se asume correcto) pero la discrepancia queda registrada: es un problema del portal digno de mirarse.</p>
+  </div>
+
+  <h2><span class="num">5.</span>Cómo se procesa el feedback de cada índice</h2>
+  <p>El diff separa el feedback en tres tratamientos distintos, porque los tres índices tienen naturaleza distinta: el INA describe <em>actividades</em>, el ISA describe <em>hechos territoriales medidos</em> y el PIA es una <em>estructura</em> de 44 ponderaciones.</p>
+
+  <h3 id="ina">5.1 · INA — el valor lo manda el técnico, las actividades se interpretan</h3>
+  <p>El <a href="02-ina.html">INA</a> de un proyecto es el <strong>máximo</strong> entre los valores de todas sus actividades económicas (clases CIIU). El técnico envía el valor corregido y, con él, un comentario en lenguaje natural. Ese comentario no se archiva: se interpreta.</p>
+  <p>La razón es que el informe publica <em>cada actividad evaluada</em> con su condición y su ponderación. Un valor INA que sus propias actividades no justifican es una incoherencia interna del dictamen — el mismo defecto que una auditoría previa señaló once veces. Por eso, si el técnico escribe "falta la actividad de tratamiento y eliminación de desechos peligrosos", hay que <strong>agregar esa clase a la lista</strong>, no solo mover el número.</p>
+
+  <div class="callout info">
+    <div class="ct">💡 El comentario se interpreta aunque el valor no cambie</div>
+    <p>Como el índice es el máximo entre las actividades, hay tres formas frecuentes de corregir la lista sin mover el número: reemplazar una actividad por otra del mismo puntaje, agregar una por debajo del máximo, o quitar una que no era la determinante. Condicionar la interpretación a que el valor cambiara descartaba el comentario en silencio en esos tres casos. Un cambio de actividades <strong>es</strong> un cambio del INA: su fundamentación se reescribe igual.</p>
+  </div>
+
+  <p>La correspondencia entre la frase del técnico y el catálogo CIIU se resuelve con una <strong>escalera de cinco escalones</strong>, diseñada para que el código aplicado salga siempre del catálogo y nunca de la imaginación del modelo:</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode orq"><div class="ftitle">1 · La IA extrae qué actividades nombra el comentario <span class="badge b-orq">IA</span></div><div class="fsub">Devuelve la acción (agregar / descartar) y una <em>frase de búsqueda</em>: la actividad sola, sin el envoltorio de la oración. <strong>No se le piden códigos.</strong></div></div>
+      <div class="farrow"></div>
+      <div class="fnode"><div class="ftitle">2 · Búsqueda en el catálogo CIIU <span class="badge b-auto">determinista</span></div><div class="fsub">Búsqueda de texto completo con esa frase. Si devuelve cero candidatas —porque exige todas las palabras— se repliega a una consulta por cualquiera de sus términos.</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision"><div class="q">¿alguna candidata coincide exactamente?</div>El título normalizado (sin mayúsculas, acentos ni puntuación) es idéntico a la frase</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow yes lbl" data-label="sí" style="height:34px"></div>
+          <div class="fnode" style="border-color:var(--ok)"><div class="ftitle">3 · Se resuelve sin gastar otra llamada</div><div class="fsub">Coincidencia exacta</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow no lbl" data-label="no" style="height:34px"></div>
+          <div class="fnode orq"><div class="ftitle">4 · Un segundo modelo elige entre las candidatas <span class="badge b-orq">IA</span></div><div class="fsub">Solo puede devolver un código que esté en la lista; ante duda real devuelve nulo. Se exige confianza ≥ 0.5.</div></div>
+          <div class="farrow"></div>
+          <div class="fnode endstop"><div class="ftitle">5 · Sin candidatas o sin elección: queda sin resolver</div><div class="fsub">Se registra el motivo y no se aplica</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 18 · La escalera de resolución de actividades CIIU a partir del comentario del técnico.</div>
+  </div>
+
+  <p>Los escalones 3 a 5 son las <strong>guardas</strong>. Además, un "descartar" solo puede apuntar a una actividad que la evaluación ya tenga: no se puede quitar lo que no está. Y si la interpretación falla por completo —modelo caído, respuesta ilegible— no se propaga el error: se registra el motivo y la lista de actividades queda como estaba, porque el valor del índice lo fija el técnico y no depende de esto.</p>
+
+  <div class="callout warn">
+    <div class="ct">➕ La actividad agregada entra sin ponderación individual</div>
+    <p>Una actividad que el técnico agrega se publica marcada como proveniente del feedback, pero <strong>sin su valor ni su condición propios</strong>. Esos datos viven en el catálogo INA, que hoy es texto dentro del prompt (unos 30 000 tokens) y no una tabla consultable; inyectarlo aquí reproduciría el problema de saturación de prompts que ya provocó respuestas vacías del modelo. El índice sigue siendo correcto —lo manda el técnico y no se recalcula—, pero el informe mostrará esa actividad sin su ponderación. Resolverlo requiere llevar el catálogo INA a base de datos, que es un trabajo aparte.</p>
+  </div>
+
+  <h3 id="isa">5.2 · ISA — se corrige la conclusión, nunca los hechos</h3>
+  <p>El <a href="03-isa.html">ISA</a> se apoya en un análisis geoespacial del polígono del proyecto: qué áreas protegidas, cuerpos de agua o zonas de recarga toca. Ese resultado es <strong>medición, no criterio</strong>, y la reevaluación no lo toca: se copia literalmente a la fila nueva.</p>
+  <p>Lo que el técnico corrige es el valor 1–4 y, en consecuencia, la explicación, que se reescribe apoyándose en las mismas capas territoriales. La distinción tiene un efecto práctico importante: la <strong>capa factual</strong> de cada índice (el georreferenciado del ISA, los datos del proyecto, el perfil que alimenta el informe) se hereda íntegra en las filas nuevas. Sin ese arrastre, el informe reevaluado saldría degradado respecto del original, con secciones vacías.</p>
+
+  <h3 id="pia">5.3 · PIA — fusión estructural y recálculo determinista</h3>
+  <p>El <a href="04-pia.html">PIA</a> es el caso más elaborado, porque su valor no se recibe: se deriva de los 44 aspectos. El proceso conserva la estructura vigente —bloques CEIA, nombres, identificadores— y sustituye solo lo que depende del valor corregido.</p>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode pia wide"><div class="ftitle">Estructura vigente del PIA + valores del técnico</div><div class="fsub">Emparejados por el id del aspecto ambiental</div></div>
+      <div class="farrow"></div>
+      <div class="fnode wide"><div class="ftitle">Se sustituye lo que depende del valor <span class="badge b-auto">determinista</span></div><div class="fsub"><strong>valor</strong>: el del técnico (o el que ya estaba, si vino nulo) · <strong>escenario</strong>: se vuelve a resolver contra el catálogo · <strong>avance</strong> del bloque CEIA: se recuenta · <strong>justificación</strong>: se vacía y se manda a reescribir</div></div>
+      <div class="farrow"></div>
+      <div class="fnode pia"><div class="ftitle">Suma CEIA = suma de los máximos por bloque</div><div class="fsub">Rango posible: 10 a 40</div></div>
+      <div class="farrow"></div>
+      <div class="fbranch">
+        <div class="flow-col"><div class="fnode" style="border-color:var(--ok)"><div class="ftitle">10 → PIA 1</div><div class="fsub">Bajo</div></div></div>
+        <div class="flow-col"><div class="fnode" style="border-color:var(--ok)"><div class="ftitle">11–19 → PIA 2</div><div class="fsub">Leve</div></div></div>
+        <div class="flow-col"><div class="fnode" style="border-color:var(--warn)"><div class="ftitle">20–30 → PIA 3</div><div class="fsub">Moderado</div></div></div>
+        <div class="flow-col"><div class="fnode" style="border-color:var(--stop)"><div class="ftitle">31–40 → PIA 4</div><div class="fsub">Alto</div></div></div>
+      </div>
+      <div class="farrow lbl" data-label="fuera de 10–40, o con aspectos en 0"></div>
+      <div class="fnode endstop"><div class="ftitle">El PIA no consolida → la reevaluación se rechaza</div><div class="fsub">Se devuelve qué aspectos faltan, en vez de un "PIA incompleto" sin pistas</div></div>
+    </div>
+    <div class="cap">Diagrama 19 · Fusión del feedback en el PIA y recálculo de su valor por la escala de Potencialidad Acumulada.</div>
+  </div>
+
+  <p>Tres detalles que sostienen la coherencia del resultado:</p>
+  <ul>
+    <li><strong>El escenario se vuelve a resolver.</strong> Cada par (aspecto, valor) corresponde a un escenario del catálogo. Si no se recalculara, el escenario seguiría apuntando al valor anterior y la capa de acciones de verificación y la derivación de documentos leerían algo que ya no corresponde.</li>
+    <li><strong>La justificación vieja no se conserva.</strong> Se vacía y el aspecto entra a la lista de textos por reescribir. Dejar el texto anterior sería peor que dejarlo vacío: un párrafo que argumenta un valor 2 colgado de un valor 3 es exactamente la clase de incoherencia interna que se está tratando de eliminar.</li>
+    <li><strong>Un comentario sin cambio de valor también corrige el dictamen.</strong> Si el técnico coincide con la ponderación pero corrige <em>por qué</em> se llegó a ella, ese aspecto se registra igual y su justificación se reescribe.</li>
+  </ul>
+
+  <div class="callout stop">
+    <div class="ct">🚧 El PIA se escribe sin pasar por su servicio de cálculo</div>
+    <p>La fila nueva del PIA se guarda directamente, evitando el servicio que lo calcula en el flujo normal. Ese servicio vuelve a aplicar los ajustes automáticos del <a href="03-isa.html">resolutor ISA→PIA</a> y de la capa de acciones de verificación sobre lecturas en caché, y volvería a persistir: <strong>sobrescribiría en silencio los valores del técnico</strong>. El recálculo del valor del PIA, en cambio, reutiliza la misma función de suma que alimenta el flujo normal, para que la reevaluación no pueda producir un resultado que el flujo original no produciría.</p>
+  </div>
+
+  <h2><span class="num">6.</span>La redacción del dictamen y el resumen del RIA</h2>
+  <p>Con los valores ya fijados, entra un <strong>agente redactor</strong> cuya única salida es texto: la fundamentación de los índices que cambiaron, una justificación por cada aspecto PIA modificado y el <strong>resumen ejecutivo</strong>. No calcula ni cuestiona ningún número.</p>
+
+  <div class="callout info">
+    <div class="ct">🧩 Por qué no lo hace el Orquestador</div>
+    <p>En el flujo conversacional, el <a href="05-orquestador.html">Orquestador</a> emite el informe como prosa y luego otro paso con IA vuelve a convertir ese texto en datos —un modelo extrayendo de un texto lo que ya estaba estructurado—. Es la parte frágil del cierre, y la razón de que exista una <a href="07-ria-cierre.html">red de seguridad del resumen</a>. Aquí el resultado se arma <strong>estructuralmente</strong> y al modelo solo se le pide texto. Además, el prompt del Orquestador ronda los 82–88 mil tokens y tiene historia documentada de respuestas vacías por tamaño; el redactor recibe solo datos, sin nada de la conversación.</p>
+  </div>
+
+  <p>Son <strong>dos llamadas en serie</strong>, y el orden no es negociable: el prompt del resumen incrusta las explicaciones recién redactadas, porque la "síntesis de hallazgos" de cada índice sale de ellas. Paralelizarlas haría que el informe hablara de hallazgos distintos a los que quedan guardados en cada índice. Los dos prompts están transcritos en la sección <a href="09-prompts.html#prompt-reevaluacion">Prompts</a>.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Llamada</th><th>Produce</th><th>Notas</th></tr></thead>
+      <tbody>
+        <tr><td><strong>1 · Fundamentación de índices</strong></td><td>Explicación del INA, del ISA y del PIA (solo de los que cambiaron) + una justificación por cada aspecto PIA modificado.</td><td>Los índices que no cambiaron <strong>conservan su texto</strong>: reescribir una explicación que estaba bien solo abre la puerta a que derive.</td></tr>
+        <tr><td><strong>2 · Resumen ejecutivo</strong></td><td>El Informe Ejecutivo completo, con la misma estructura obligatoria del flujo normal.</td><td>Se le pasa el informe anterior <strong>solo como referencia de forma</strong>. Sus conclusiones están superadas y no puede repetirlas.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="compuertas">6.1 · Las dos compuertas sobre el texto</h3>
+  <p>Cada texto producido pasa por una revisión de programación —no por otro modelo— antes de aceptarse. Existe porque en este proyecto ya está medido que <strong>una regla en el prompt no alcanza</strong>: una regla equivalente de abstención en el PIA topó en 84 % de cumplimiento con el modelo real y se violaba textualmente.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Compuerta</th><th>Qué rechaza</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Mención humana</strong></td><td>Atribuir la conclusión a una persona · declarar que hubo una corrección o revisión · revelar que existió una versión anterior ("originalmente", "el valor previo") · mencionar retroalimentación u observaciones externas.</td></tr>
+        <tr><td><strong>Anclaje en el dictamen anterior</strong></td><td>Que el resumen <em>repita</em> el valor RIA o la categoría anteriores, o que <em>omita</em> los vigentes. Solo se aplica si algo cambió: si el RIA y la categoría son los mismos, no hay anclaje posible.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Las dos compuertas están afinadas para no rechazar textos correctos, porque un falso positivo dejaría el bucle de reintentos sin salida:</p>
+  <ul>
+    <li>Se distingue la <strong>atribución</strong> de la palabra suelta: "criterio técnico" e "informe técnico" son lenguaje legítimo de un informe ambiental; "el técnico determinó" no lo es.</li>
+    <li>Se distingue una <strong>afirmación sobre el proyecto</strong> de una <strong>referencia a la escala</strong>: la estructura obligatoria del informe exige la línea "Rango RIA: 6 a 8", así que las cifras que describen rangos, umbrales o intervalos no cuentan como anclaje.</li>
+  </ul>
+
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode orq"><div class="ftitle">El modelo redacta</div></div>
+      <div class="farrow"></div>
+      <div class="fdecision"><div class="q">compuertas</div>¿Menciona al humano, ancla en el dictamen viejo o falta alguna justificación pedida?</div>
+      <div class="fbranch">
+        <div class="flow-col">
+          <div class="farrow no lbl" data-label="sí, hay hallazgos" style="height:34px"></div>
+          <div class="fnode"><div class="ftitle">Reintento con los fragmentos exactos que fallaron</div><div class="fsub">Se le muestra qué falló, no se le repite la regla: repetir la regla es lo que ya no funcionó</div></div>
+          <div class="farrow lbl" data-label="hasta 3 intentos"></div>
+          <div class="fnode endstop"><div class="ftitle">Se aborta antes de persistir nada</div><div class="fsub">Publicar un dictamen que delata la intervención humana es peor que no publicar</div></div>
+        </div>
+        <div class="flow-col">
+          <div class="farrow yes lbl" data-label="limpios" style="height:34px"></div>
+          <div class="fnode endok"><div class="ftitle">Textos aprobados</div><div class="fsub">Recién ahora se escriben las filas nuevas de los índices</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Diagrama 20 · Redacción con compuertas y reintentos dirigidos.</div>
+  </div>
+
+  <h3>6.2 · El recálculo del RIA</h3>
+  <p>El RIA <strong>no se recalcula con una fórmula propia</strong>: se deja que lo haga el <a href="07-ria-cierre.html">pipeline de siempre</a> sobre las filas recién escritas. Como los tres repositorios leen la fila más reciente de cada índice, las filas nuevas ya son la evaluación vigente del trámite y el cálculo sale solo, con la misma suma y la misma tabla de categorías que el flujo normal.</p>
+
+  <ol>
+    <li>El pipeline suma INA + ISA + PIA, asigna la categoría ambiental y genera su propia explicación del RIA.</li>
+    <li>Esa explicación —que la produce el pipeline con su propio prompt, no el agente redactor— <strong>también pasa por la compuerta de mención humana</strong>. Aquí no se reintenta, porque ese prompt no es de este flujo: se registra el hallazgo y se poda la frase.</li>
+    <li>Se verifica que el RIA calculado <strong>coincida</strong> con el que se le dijo al redactor. Si no coinciden, las filas guardadas no son las que se usaron para redactar y el resumen afirmaría un valor que el dictamen no tiene: es una inconsistencia interna y se aborta.</li>
+    <li>Se arma el resultado y se le <strong>inyecta el resumen redactado</strong>. No se extrae nada de prosa.</li>
+    <li>Se guarda en <code>ria_evaluations</code> como una fila nueva, marcada con el origen <code>reevaluacion_tecnica</code>, el identificador del feedback, el del dictamen anterior y la duración. Si la sesión sigue viva en memoria, se refresca para que la red de seguridad del resumen no use el dictamen viejo como base.</li>
+  </ol>
+
+  <div class="callout key">
+    <div class="ct">📤 Qué devuelve el endpoint</div>
+    <p>El <strong>mismo JSON</strong> que la conversación: el dictamen completo. Y aparte, un nodo <code>reevaluacion</code> con el identificador del feedback, el RIA anterior y el nuevo, la categoría anterior y la nueva, si hubo cambio de categoría, qué índices se modificaron y cuánto tardó. Ese nodo vive <strong>fuera</strong> del dictamen a propósito: es información para el portal, no para el expediente.</p>
+  </div>
+
+  <h2><span class="num">7.</span>El orden de los pasos, y por qué es así</h2>
+  <p>El flujo tiene catorce pasos y el orden es una decisión de diseño, no una casualidad. Tres reglas lo gobiernan:</p>
+
+  <div class="cards">
+    <div class="card" style="border-left-color:var(--ria)">
+      <div class="role" style="color:var(--ria)">Regla 1</div><h3>El "antes" se congela primero</h3>
+      <p>El <em>snapshot</em> se toma antes de escribir nada, porque en el momento en que se insertan las filas nuevas el estado anterior deja de estar disponible. Sin él, el análisis posterior no tendría con qué comparar.</p>
+    </div>
+    <div class="card" style="border-left-color:var(--ria)">
+      <div class="role" style="color:var(--ria)">Regla 2</div><h3>El feedback se registra antes de tocar nada</h3>
+      <p>La fila del feedback se inserta antes de cualquier escritura. Si algo falla después, queda constancia de qué se intentó aplicar y sobre qué estado.</p>
+    </div>
+    <div class="card" style="border-left-color:var(--ria)">
+      <div class="role" style="color:var(--ria)">Regla 3</div><h3>Se redacta antes de persistir</h3>
+      <p>Los textos se producen y se aprueban <strong>antes</strong> de escribir las filas nuevas de los índices. Si la redacción falla, no queda una evaluación a medio corregir.</p>
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li><span class="st">Validar el contrato</span><p>Escala, cardinalidades e ids. Todos los errores juntos.</p></li>
+    <li><span class="st">Leer el dictamen vigente</span><p>De ahí sale también la sesión que lo produjo. Sin dictamen previo no hay nada que reevaluar.</p></li>
+    <li><span class="st">Congelar el snapshot del "antes"</span><p>Valores, explicaciones, valores y justificaciones por aspecto, y la lista de actividades del INA.</p></li>
+    <li><span class="st">Comprobar idempotencia</span><p>Si este mismo contrato ya se procesó, se reproduce el resultado guardado (ver <a href="#idempotencia">§8</a>).</p></li>
+    <li><span class="st">Calcular el diff contra la IA</span><p>Qué cambió de verdad. Si un aspecto queda sin valor ni del técnico ni de la IA, se rechaza.</p></li>
+    <li><span class="st">Registrar el feedback</span><p>Antes de escribir cualquier otra cosa.</p></li>
+    <li><span class="st">Interpretar el comentario del INA</span><p>La escalera de actividades CIIU.</p></li>
+    <li><span class="st">Fusionar y recalcular el PIA</span><p>Si no consolida un valor válido, se rechaza indicando qué aspectos faltan.</p></li>
+    <li><span class="st">Redactar los textos</span><p>Con las compuertas. Si no pasan, se aborta aquí.</p></li>
+    <li><span class="st">Insertar las filas nuevas de INA, ISA y PIA</span><p>A partir de este punto, son la evaluación vigente del trámite.</p></li>
+    <li><span class="st">Calcular el RIA por el pipeline existente</span><p>Y verificar que coincida con el que se usó para redactar.</p></li>
+    <li><span class="st">Armar el dictamen</span><p>Estructuralmente, con el resumen redactado inyectado.</p></li>
+    <li><span class="st">Persistir en <code>ria_evaluations</code></span><p>Con la marca de reevaluación.</p></li>
+    <li><span class="st">Cerrar la fila del feedback</span><p>Con el resultado, la duración por fase y el detalle de lo aplicado.</p></li>
+  </ol>
+
+  <h3>7.1 · Qué se rechaza y con qué código</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Código</th><th>Situación</th><th>Qué informa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-warn">422</span> <code>contrato_invalido</code></td><td>El contrato no cuadra.</td><td>La lista completa de errores.</td></tr>
+        <tr><td><span class="badge b-warn">409</span> <code>sin_dictamen_previo</code></td><td>El trámite no tiene un RIA emitido, o el dictamen no permite identificar la sesión que lo produjo.</td><td>El código de formulario.</td></tr>
+        <tr><td><span class="badge b-warn">409</span> <code>contrato_ya_procesado</code></td><td>Este contrato ya se aplicó, pero el dictamen vigente cambió después: reproducirlo sería mentir sobre el estado actual.</td><td>El feedback y el dictamen que produjo.</td></tr>
+        <tr><td><span class="badge b-warn">409</span> <code>reevaluacion_en_curso</code></td><td>El mismo contrato tiene una corrida que todavía puede estar viva.</td><td>Cuántos segundos esperar antes de reintentar.</td></tr>
+        <tr><td><span class="badge b-warn">422</span> <code>pia_incompleto</code></td><td>Quedan aspectos sin valor, o la suma CEIA cae fuera de 10–40.</td><td>Qué aspectos concretos faltan.</td></tr>
+        <tr><td><span class="badge b-stop">502</span> <code>redaccion_rechazada</code></td><td>Los textos no pasaron las compuertas tras tres intentos.</td><td>El feedback registrado, para diagnóstico.</td></tr>
+        <tr><td><span class="badge b-warn">422</span> <code>ria_no_calculable</code></td><td>El pipeline no calculó el RIA, o el valor no coincide con el usado para redactar.</td><td>El motivo y los dos valores.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="idempotencia"><span class="num">8.</span>Idempotencia, reintentos y concurrencia</h2>
+  <p>Un endpoint que tarda más de dos minutos va a recibir reintentos, así que el comportamiento ante el reenvío está definido explícitamente. Cada contrato se identifica por una <strong>huella</strong> (sha256 de su contenido, con las claves ordenadas, de modo que dos envíos equivalentes con distinto formato dan la misma huella), y un índice único en base de datos impide que el mismo contrato para el mismo trámite genere dos filas.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Escenario</th><th>Comportamiento</th></tr></thead>
+      <tbody>
+        <tr><td>El contrato ya se aplicó por completo, y su dictamen sigue siendo el vigente.</td><td>Se <strong>reproduce</strong> el resultado guardado, sin volver a calcular nada. La respuesta llega con estado <code>reproducido</code>.</td></tr>
+        <tr><td>El contrato ya se aplicó, pero después hubo otro dictamen.</td><td>Se rechaza (409): hay que consultar el estado actual antes de reenviar.</td></tr>
+        <tr><td>Una corrida anterior del mismo contrato quedó a medias y ya no puede estar viva.</td><td>Se <strong>reabre</strong> la fila existente en vez de insertar otra, contando el reintento.</td></tr>
+        <tr><td>Una corrida anterior del mismo contrato puede seguir corriendo.</td><td>Se rechaza (409) con los segundos que faltan para poder reintentar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout stop">
+    <div class="ct">⚠️ Por qué existe la compuerta de concurrencia</div>
+    <p>Que el cliente se desconecte <strong>no aborta la corrida</strong>: el servidor la lleva hasta el final. Un reintento inmediato, entonces, no reemplaza a la anterior — <em>corre en paralelo con ella</em>, y las dos escriben filas de índices y emiten dictamen. Medido en un entorno de prueba: dos dictámenes para el mismo feedback. El corte es el <em>timeout</em> con el que se despliega el servicio (300 s por defecto): pasado ese plazo la petición está terminada por el servidor, con resultado o sin él, y reabrir la fila es seguro. Por debajo, se prefiere hacer esperar antes que emitir dos dictámenes.</p>
+  </div>
+
+  <p>Cuando un reintento se reabre, queda registrado si el intento anterior <strong>alcanzó a escribir filas de índices</strong>. En ese caso el diff del reintento se calculó contra un estado ya corregido a medias y no contra el dictamen original. No se bloquea —dejaría al técnico sin salida— pero queda dicho.</p>
+
+  <div class="callout info">
+    <div class="ct">📈 Una línea de log por corrida, termine bien o mal</div>
+    <p>Cada reevaluación emite una sola línea con el total y el <strong>desglose por fase</strong> (lectura, interpretación del INA, redacción de índices, redacción del resumen, escritura, RIA), más el conteo de llamadas al modelo. El desglose también se guarda en la fila del feedback, para poder sacar estadística con consultas SQL sin depender de la retención de los registros de la nube. Las corridas <em>fallidas</em> se cronometran igual: son las que más interesan cuando se sospecha de un <em>timeout</em>. Dato medido: la redacción se lleva cerca del 88 % del tiempo total.</p>
+  </div>
+
+  <h2><span class="num">9.</span>El análisis de contraste: ¿tenía razón el técnico?</h2>
+  <p>El segundo momento corre después y por separado. Toma un feedback ya aplicado y <strong>contrasta cada cambio</strong> contra el catálogo y la evidencia del proyecto. Es control interno para que el sistema aprenda: ni una revisión del técnico ni una defensa del sistema.</p>
+
+  <div class="callout key">
+    <div class="ct">📌 El "antes" tiene que venir del snapshot</div>
+    <p>Para cuando este análisis corre, las filas nuevas ya son la evaluación vigente: consultar la base de datos devolvería los valores <em>del técnico</em>, no los del sistema. El único registro de lo que la IA había concluido es el snapshot congelado en el paso 3. Por eso ese paso es obligatorio y no opcional.</p>
+  </div>
+
+  <p>Cada cambio se juzga con una llamada al modelo que recibe: el cambio (valor del sistema → valor del técnico y su comentario), los <strong>escenarios del catálogo</strong> para ese aspecto (qué significa cada valor 1–4), las <strong>reglas de observación y excepción</strong> del aspecto, lo que el sistema había concluido y los <strong>hechos georreferenciados</strong> del ISA.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Veredicto</th><th>Significado</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-ok">confirma_humano</span></td><td>La evidencia respalda el valor del técnico. El sistema se equivocó.</td></tr>
+        <tr><td><span class="badge b-stop">refuta_humano</span></td><td>La evidencia respalda el valor del sistema. La corrección no está fundamentada en lo verificable.</td></tr>
+        <tr><td><span class="badge b-warn">indeterminado</span></td><td>La evidencia disponible no permite decidir —depende de una inspección de campo o de un dato que no está—. <strong>No es la salida cómoda: es la correcta cuando el dato no está</strong>, porque un veredicto inventado contamina los patrones que este análisis existe para encontrar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Además del veredicto, cada cambio produce una <strong>aclaración</strong> (qué cambió, contra qué se contrastó y por qué se llegó a ese veredicto — el negocio pidió explícitamente una por cada cambio), una <strong>lección</strong> para el sistema, una <strong>regla candidata</strong> redactada de forma aplicable, y un nivel de <strong>confianza</strong> de 0 a 1 que mide cuán sólida es la evidencia, no cuán seguro se siente el modelo. Los tres últimos campos pueden ir vacíos: una regla mal fundada aplicada a futuro hace más daño que ninguna.</p>
+
+  <div class="callout warn">
+    <div class="ct">🎯 Un detalle que cambió los veredictos</div>
+    <p>Al juzgar un aspecto del PIA se le entrega <strong>su propia justificación</strong>, no la explicación global del índice. Cuando se le pasaba la global, el analista observaba —con razón— que el texto no correspondía al aspecto, y de ahí concluía que el sistema se había equivocado. Ese veredicto era un artefacto del contexto, no un hallazgo. Cuando la justificación por aspecto no existe (filas antiguas que no la guardaban) se dice explícitamente, en lugar de sustituirla por la global.</p>
+  </div>
+
+  <p>Detalles operativos del análisis:</p>
+  <ul>
+    <li><strong>Una fila por cambio</strong>, no un documento por feedback: el objetivo es consultar patrones por índice, aspecto y veredicto, y eso se hace por columna.</li>
+    <li><strong>Tope de 25 cambios por corrida.</strong> Un contrato puede traer los 44 aspectos modificados; sin tope serían 44 llamadas al modelo que nadie decidió. Lo omitido se informa en la respuesta y en los registros.</li>
+    <li><strong>Un cambio que no se pudo analizar es un dato</strong>, no un error: queda como <code>indeterminado</code> con su motivo y no tumba el análisis de los demás.</li>
+    <li><strong>Un feedback sin cambios reales</strong> —el técnico revisó y confirmó— se marca como analizado con cero filas, para que no quede eternamente en la cola.</li>
+    <li>La cola de pendientes se resuelve con un índice parcial en base de datos, para no recorrer el histórico en cada pasada.</li>
+  </ul>
+
+  <h2><span class="num">10.</span>Lo que la reevaluación deliberadamente no hace</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>No hace</th><th>Por qué</th></tr></thead>
+      <tbody>
+        <tr><td>No evalúa la competencia con el <a href="06-motor-sea.html">Motor de Reglas SEA</a>.</td><td>Si un técnico está reevaluando, el trámite ya pasó ese filtro. El veredicto vigente se anota en el feedback sin bloquear: si llegara una reevaluación sobre un trámite cuyo veredicto no era del MARN, eso apunta a un problema del portal y el análisis posterior debe poder verlo.</td></tr>
+        <tr><td>No aplica el modo de contención que oculta el Informe RIA.</td><td>Ese modo existe para lo que ve el ciudadano; este flujo es de uso interno.</td></tr>
+        <tr><td>No recalcula el valor del INA ni el del ISA.</td><td>Los manda el técnico. Lo que se recalcula es el PIA (porque se deriva de los aspectos) y el RIA (porque es la suma).</td></tr>
+        <tr><td>No abre ni toca la conversación del ciudadano.</td><td>No hay sesión de agente: es una llamada directa al modelo con un esquema de respuesta. La conversación ya cerró y resucitarla habría traído estado que este flujo no quiere.</td></tr>
+        <tr><td>No discute el insumo humano en el momento 1.</td><td>Esa discusión es el momento 2, y no debe poder demorar ni tumbar la respuesta al portal.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">11.</span>Dónde queda todo guardado</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Tabla</th><th>Qué guarda</th></tr></thead>
+      <tbody>
+        <tr><td><code>feedback_tecnico_indices</code></td><td>Una fila por reevaluación: el contrato verbatim, su huella, el <strong>snapshot del "antes"</strong>, los identificadores de las filas anteriores y de las nuevas, el RIA y la categoría antes y después, si hubo cambio de categoría, el estado del análisis y la metadata de la corrida (duración por fase, llamadas al modelo, intentos de redacción, actividades CIIU interpretadas, discrepancias de banderas).</td></tr>
+        <tr><td><code>feedback_tecnico_analisis</code></td><td>Una fila por cambio contrastado: índice, aspecto, valor del sistema, valor del técnico, comentario, veredicto, aclaración, lección, regla candidata, fundamento normativo y confianza.</td></tr>
+        <tr><td><code>ina_evaluations</code> · <code>isa_evaluations</code> · <code>pia_evaluations</code></td><td>Una fila nueva cada una, con los valores corregidos, los textos reescritos y la capa factual heredada. Quedan marcadas con el origen <code>reevaluacion_tecnica</code> y el identificador del feedback, y pasan a ser la evaluación vigente.</td></tr>
+        <tr><td><code>ria_evaluations</code></td><td>El dictamen nuevo, versionado por fecha como cualquier otro cálculo del RIA, con la marca de reevaluación y el identificador del dictamen anterior.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="num">12.</span>Recapitulación</h2>
+  <div class="flow">
+    <div class="flow-col">
+      <div class="fnode"><div class="ftitle">1 · El técnico corrige valores y comenta</div><div class="fsub">Contrato validado en la frontera: escala 1–4, 10 CEIAs, 44 aspectos, nulo ≠ cero</div></div>
+      <div class="farrow"></div>
+      <div class="fnode"><div class="ftitle">2 · El sistema calcula qué cambió de verdad</div><div class="fsub">Comparando contra lo que había concluido la IA, no confiando en las banderas del portal</div></div>
+      <div class="farrow"></div>
+      <div class="fnode"><div class="ftitle">3 · Se aplica por índice</div><div class="fsub">INA: valor + actividades interpretadas · ISA: valor, hechos intactos · PIA: fusión + recálculo de la suma CEIA</div></div>
+      <div class="farrow"></div>
+      <div class="fnode orq"><div class="ftitle">4 · Se reescriben los textos y se verifican</div><div class="fsub">Sin delatar la intervención humana y sin anclarse en el dictamen anterior</div></div>
+      <div class="farrow"></div>
+      <div class="fnode ria"><div class="ftitle">5 · El pipeline recalcula RIA = INA + ISA + PIA</div><div class="fsub">Sobre las filas nuevas, con la misma fórmula y la misma tabla de categorías</div></div>
+      <div class="farrow"></div>
+      <div class="fnode endok"><div class="ftitle">6 · Dictamen nuevo emitido y guardado</div><div class="fsub">Y el metadato de la operación, aparte, para el portal</div></div>
+      <div class="farrow lbl" data-label="después"></div>
+      <div class="fnode" style="border-color:var(--brand); border-left-width:5px"><div class="ftitle">7 · Contraste offline por cada cambio</div><div class="fsub">Confirma / refuta / indeterminado → lecciones, reglas candidatas y patrones</div></div>
+    </div>
+    <div class="cap">Diagrama 21 · La reevaluación técnica de extremo a extremo.</div>
+  </div>
+
+  <div class="pager">
+    <a href="08-corpus-legal.html"><div class="dir">← Anterior</div><div class="ti">Corpus legal y RAG multi-ley</div></a>
+    <a class="next" href="09-prompts.html"><div class="dir">Siguiente →</div><div class="ti">Prompts (apéndice)</div></a>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <div>Environmental Risk AI (MARN) · Tutorial técnico del pipeline de evaluación RIA</div>
+  <div><a href="#">Volver arriba ↑</a></div>
+</footer>
+
+</body>
+</html>

@@ -214,6 +214,10 @@ td code{white-space:nowrap}
 .fnode.start .fsub{color:rgba(255,255,255,.85)}
 .fnode.endok{background:var(--ok); color:#fff; border-color:var(--ok); border-radius:26px}
 .fnode.endstop{background:var(--stop); color:#fff; border-color:var(--stop); border-radius:26px}
+.fnode.endok .fsub,.fnode.endstop .fsub{color:rgba(255,255,255,.88)}
+/* `code` dentro de un nodo de fondo sólido: sin esto conserva su fondo claro y hereda
+   el texto blanco del nodo, quedando ilegible. */
+.fnode.start code,.fnode.endok code,.fnode.endstop code{background:rgba(255,255,255,.2); color:#fff}
 .fnode.ina{border-color:var(--ina); border-left-width:5px}
 .fnode.isa{border-color:var(--isa); border-left-width:5px}
 .fnode.pia{border-color:var(--pia); border-left-width:5px}

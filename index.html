@@ -21,6 +21,7 @@
     <a href="06-motor-sea.html">Motor SEA</a>
     <a href="07-ria-cierre.html">RIA y cierre</a>
     <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="10-reevaluacion.html">Reevaluación</a>
     <a href="09-prompts.html">Prompts</a>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
   </div>
@@ -36,11 +37,12 @@
 
   <div class="callout key">
     <div class="ct">🆕 Novedades de la versión 2.0</div>
-    <p>Esta edición documenta las funcionalidades incorporadas en las últimas iteraciones del sistema. Tres cambios mayores respecto a la <strong>versión 1.0</strong>:</p>
+    <p>Esta edición documenta las funcionalidades incorporadas en las últimas iteraciones del sistema. Cuatro cambios mayores respecto a la <a href="../v1.0/index.html">versión 1.0</a>:</p>
     <ul style="margin:.4em 0 0">
       <li><strong>Motor de Reglas SEA</strong> — la antigua "compuerta DOT" (competencia binaria MARN/DOT) se generalizó a un motor que clasifica el trámite en <strong>cuatro caminos</strong> y puede redirigir a <strong>múltiples autoridades</strong> (DOT, ANDRES, MIVI, ASA, OPAMSS/APLAN, Alcaldía) o avanzar con <strong>alertas de co-competencia</strong> hacia otras instituciones.</li>
       <li><strong>Corpus legal y RAG multi-ley</strong> — un almacén de leyes vectorizadas (pgvector) del que el sistema recupera artículos exactos por búsqueda semántica; alimenta al PIA, al Motor SEA y una nueva herramienta conversacional (<span class="tool">consultar_ley</span>).</li>
       <li><strong>Salvaguardas deterministas reforzadas</strong> — invocación forzada del Motor SEA al ingreso, un <em>almacén de hechos</em> acumulativo por sesión y candados de código que garantizan el comportamiento aunque la IA se desvíe.</li>
+      <li><strong>Reevaluación técnica del dictamen</strong> — una vía interna para que un técnico del MARN corrija los índices de un trámite <em>ya resuelto</em>: el sistema rehace la fundamentación, recalcula el RIA y emite un dictamen nuevo, y después contrasta cada corrección para aprender de ella.</li>
     </ul>
   </div>
 
@@ -119,7 +121,19 @@
     <p>Los <strong>endpoints de la Fase A</strong> son cálculos dirigidos (una entrada → un valor de índice guardado). El <strong>Agente Orquestador de la Fase B</strong> es el único componente conversacional: no vuelve a calcular desde cero, sino que <em>consolida</em> lo ya sembrado, pide lo que falta y decide cuándo y cómo producir el resultado final.</p>
   </div>
 
-  <h2><span class="num">3.</span>Explore por sección</h2>
+  <h2><span class="num">3.</span>Después del dictamen: la reevaluación técnica</h2>
+  <p>El pipeline anterior termina con el Informe Ejecutivo entregado al ciudadano. Pero un dictamen puede estar equivocado, y hasta esta incorporación no había forma de corregirlo sin volver a empezar el trámite. La <strong>reevaluación técnica</strong> es una <strong>tercera fase, interna y sin conversación</strong>: un técnico del MARN revisa un trámite ya resuelto en el portal interno, corrige los valores de INA, ISA o de los aspectos del PIA que considere equivocados y comenta cada corrección.</p>
+  <p>El sistema aplica esas correcciones, <strong>reescribe todos los textos afectados</strong>, recalcula el RIA por el mismo pipeline y emite un dictamen nuevo que se lee como si fuera el primero: ningún campo del expediente delata que hubo intervención humana. Después, por separado y sin apuro, un segundo proceso <strong>contrasta cada cambio</strong> contra el catálogo y la evidencia para decidir si el criterio humano estaba fundamentado — y de ahí extraer lecciones y reglas nuevas.</p>
+
+  <div class="pipe" style="width:100%">
+    <div class="stage ep"><div class="n">FASE C · 1</div><div class="t" style="color:var(--ria)">reevaluacion/indices</div><div class="d">Aplica las correcciones, redacta el dictamen nuevo y recalcula el RIA. Síncrono, 77–135 s.</div></div>
+    <div class="stage ep"><div class="n">FASE C · 2</div><div class="t" style="color:var(--brand)">reevaluacion/analisis/{id}</div><div class="d">Contrasta cada cambio y emite un veredicto por cambio. Offline.</div></div>
+    <div class="stage ep"><div class="n">FASE C · 3</div><div class="t" style="color:var(--brand)">…/analisis/pendientes/procesar</div><div class="d">Procesa por lote la cola de correcciones sin analizar.</div></div>
+  </div>
+
+  <p>El detalle completo —el contrato de modificaciones, cómo se procesa el feedback de cada índice, las compuertas que revisan los textos y el análisis de contraste— está en la sección <a href="10-reevaluacion.html">Reevaluación técnica</a>.</p>
+
+  <h2><span class="num">4.</span>Explore por sección</h2>
   <div class="cards">
     <a class="card link c-brand" href="01-vision-general.html">
       <div class="role">Fundamentos</div><h3>Visión general y arquitectura</h3>
@@ -161,9 +175,14 @@
       <p>Cómo se vectorizan las leyes, cómo se recuperan artículos por búsqueda semántica y la herramienta <span class="tool">consultar_ley</span>.</p>
       <div class="arrow">Leer →</div>
     </a>
+    <a class="card link c-ria" href="10-reevaluacion.html">
+      <div class="role">El circuito de corrección · v2.0</div><h3>Reevaluación técnica</h3>
+      <p>Cómo un técnico del MARN corrige los índices de un trámite ya resuelto, cómo se rehace el dictamen y cómo el sistema juzga después si tenía razón.</p>
+      <div class="arrow">Leer →</div>
+    </a>
   </div>
 
-  <h2><span class="num">4.</span>Convenciones visuales</h2>
+  <h2><span class="num">5.</span>Convenciones visuales</h2>
   <div class="tablewrap">
     <table>
       <thead><tr><th>Elemento</th><th>Significado</th></tr></thead>

@@ -21,6 +21,7 @@
     <a href="06-motor-sea.html">Motor SEA</a>
     <a href="07-ria-cierre.html">RIA y cierre</a>
     <a href="08-corpus-legal.html">Corpus legal</a>
+    <a href="10-reevaluacion.html">Reevaluación</a>
     <a href="09-prompts.html">Prompts</a>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙</button>
   </div>
@@ -101,6 +102,11 @@
   <div class="callout ok">
     <div class="ct">🛟 Backstop del resumen ejecutivo</div>
     <p>El resumen ejecutivo se extrae del texto del informe. Si esa extracción falla en el momento, o el sistema se reinicia, la fila podría quedar sin resumen. Un mecanismo de respaldo lo detecta y lo completa después —recuperando el texto del informe desde el histórico— e inserta una fila corregida. También existe una herramienta (<span class="tool">finalize_ria_pending_tool</span>) para que el usuario pueda pedir completar una evaluación que quedó a medias, sin recalcular nada.</p>
+  </div>
+
+  <div class="callout key">
+    <div class="ct">🔁 ¿Y si el dictamen está equivocado?</div>
+    <p>Un trámite ya resuelto puede corregirse sin volver a empezar: un técnico del MARN envía los valores corregidos de INA, ISA o de los aspectos del PIA y el sistema <strong>rehace el dictamen completo</strong> —reescribe la fundamentación, recalcula el RIA y reasigna la categoría—, emitiendo un informe que se lee como si fuera el primero. Es el circuito de <a href="10-reevaluacion.html">reevaluación técnica</a>.</p>
   </div>
 
   <h2><span class="num">5.</span>Resumen de compromisos del usuario</h2>
